@@ -2,8 +2,9 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
 export const DEFAULT_EXCLUDES = [
-  '**/node_modules/**', '**/bin/**', '**/obj/**', '**/dist/**', '**/.git/**',
-  '**/.vs/**', '**/.idea/**', '**/coverage/**', '**/.agentatlas/**', '**/TestResults/**',
+  '**/node_modules/**', '**/bin/**', '**/obj/**', '**/dist/**', '**/build/**', '**/.git/**',
+  '**/.vs/**', '**/.idea/**', '**/.gradle/**', '**/coverage/**', '**/.agentatlas/**', '**/TestResults/**',
+  '**/target/**', '**/vendor/**', '**/.venv/**', '**/venv/**', '**/__pycache__/**', '**/site-packages/**',
 ];
 
 /** Convert a glob (`**`, `*`, `?`) to a RegExp matched against forward-slash relative paths. */

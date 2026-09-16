@@ -7,15 +7,21 @@ import {
 import { scanBicep } from './scanners/bicep.js';
 import { scanCompose } from './scanners/compose.js';
 import { scanDotnet } from './scanners/dotnet.js';
+import { scanGo } from './scanners/go.js';
+import { scanJava } from './scanners/java.js';
 import { scanNode } from './scanners/node.js';
 import { scanOpenApi } from './scanners/openapi.js';
 import { scanOtel } from './scanners/otel.js';
+import { scanPython } from './scanners/python.js';
 import type { Scanner } from './scanners/types.js';
 import { DEFAULT_EXCLUDES, uniq, walk } from './util.js';
 
 /** Order matters: code scanners run first so later scanners can attach to their nodes. */
 const SCANNERS: Array<[ScannerName, Scanner]> = [
   ['dotnet', scanDotnet],
+  ['java', scanJava],
+  ['go', scanGo],
+  ['python', scanPython],
   ['node', scanNode],
   ['compose', scanCompose],
   ['openapi', scanOpenApi],

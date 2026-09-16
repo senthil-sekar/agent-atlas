@@ -36,7 +36,10 @@ Commit `agentatlas.yaml`, `.agentatlas/atlas.yaml`, and `SYSTEM.md`. Run `agenta
 | Scanner | Reads | Finds |
 |---|---|---|
 | `dotnet` | `*.csproj`, `appsettings*.json` | Web APIs, workers, Functions, YARP/Ocelot gateways; data stores from packages and connection strings; HTTP calls from `*Url`/`*Endpoint`/`*Address` settings; topics, queues, and subscriptions from messaging settings. Test projects are skipped; libraries contribute their packages to the services that reference them. |
-| `node` | `package.json` | Express, Fastify, NestJS, Koa, Hono, Next.js, Nuxt, and Azure Functions apps, with their data and messaging clients |
+| `java` | `pom.xml`, `build.gradle(.kts)` | Spring Boot, Micronaut, and Quarkus apps, with data and messaging clients from Maven/Gradle dependencies. Aggregator (`packaging: pom`) modules and libraries without a web starter are skipped. |
+| `go` | `go.mod`, `*.go` | One node per `package main` directory (the common `cmd/<service>/main.go` layout), with framework (Gin, Echo, Fiber, chi, gorilla/mux, gRPC) and infra clients from `go.mod` requires. |
+| `python` | `pyproject.toml`, `requirements.txt` | Django, Flask, FastAPI, Tornado, aiohttp, and Starlette apps, with data and messaging clients from their dependencies. Projects without a recognized web framework are skipped. |
+| `node` | `package.json` | Express, Fastify, NestJS, Koa, Hono, Next.js, Nuxt, Remix, Angular, Vue, Svelte, plain React, and Azure Functions apps, with their data and messaging clients |
 | `compose` | `docker-compose*.yml`, `compose*.yaml` | Services and infrastructure containers, `depends_on`, and hostnames in environment variables. Build contexts link compose services to code projects automatically. |
 | `openapi` | `openapi*.yaml/json`, `swagger*.json` | Endpoints, attached to the code project that contains the spec |
 | `bicep` | `*.bicep` | Container Apps, App Service, Functions, API Management, SQL, Cosmos DB, Redis, Service Bus topics and queues, Event Hubs, Storage, AI Search |
@@ -135,7 +138,7 @@ system:
 
 scan:
   exclude: ["legacy/**"]                  # added to the defaults (bin, obj, node_modules, …)
-  scanners: [dotnet, compose, openapi, bicep, otel]
+  scanners: [dotnet, java, go, python, node, compose, openapi, bicep, otel]
   traces: ["traces/**/*.json"]            # OTLP JSON exports
   stripPrefixes: [contoso]                # Contoso.Quote.Api → quote-api
 
