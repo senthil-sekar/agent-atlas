@@ -1,0 +1,58 @@
+{
+  "name": "agentatlas",
+  "version": "0.1.0",
+  "description": "Maps how your services connect and hands that map to AI agents, as a SYSTEM.md, a YAML graph, and an MCP server.",
+  "type": "module",
+  "bin": {
+    "agentatlas": "dist/cli.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "npm run build && npm test",
+    "example": "node dist/cli.js scan --dir examples/quote-to-bind"
+  },
+  "keywords": [
+    "architecture",
+    "topology",
+    "ai-agents",
+    "mcp",
+    "system-design",
+    "service-map",
+    "opentelemetry"
+  ],
+  "author": "Senthil Sekar",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/senthil-sekar/agent-atlas.git"
+  },
+  "homepage": "https://github.com/senthil-sekar/agent-atlas",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.3",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
+  }
+}

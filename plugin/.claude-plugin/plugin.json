@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "agentatlas",
+  "displayName": "AgentAtlas",
+  "version": "0.1.0",
+  "description": "Gives Claude a map of how your services connect: MCP tools for dependencies, callers, blast radius, and end-to-end flows, generated from code, compose files, Bicep, OpenAPI, and OpenTelemetry traces.",
+  "author": { "name": "Senthil Sekar", "url": "https://github.com/senthil-sekar" },
+  "homepage": "https://github.com/senthil-sekar/agent-atlas",
+  "repository": "https://github.com/senthil-sekar/agent-atlas",
+  "license": "MIT",
+  "keywords": ["architecture", "topology", "dependencies", "impact-analysis", "mcp", "system-map"]
+}

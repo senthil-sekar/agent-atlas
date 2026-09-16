@@ -1,0 +1,40 @@
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: src/Contoso.Gateway/Dockerfile
+    ports: ["8080:8080"]
+    depends_on: [quote-api]
+
+  quote-api:
+    build:
+      context: .
+      dockerfile: src/Contoso.Quote.Api/Dockerfile
+    environment:
+      ConnectionStrings__QuoteDb: "Server=sqlserver;Database=Quotes;User Id=sa;Password=${SA_PASSWORD}"
+      ConnectionStrings__Redis: "redis:6379"
+      RatingEngine__BaseUrl: "http://rating-engine:8080"
+    depends_on: [sqlserver, redis, servicebus, rating-engine]
+
+  rating-engine:
+    build:
+      context: .
+      dockerfile: src/Contoso.Rating.Engine/Dockerfile
+    depends_on: [redis]
+
+  policy-worker:
+    build:
+      context: .
+      dockerfile: src/Contoso.Policy.Worker/Dockerfile
+    environment:
+      ConnectionStrings__PolicyDb: "Server=sqlserver;Database=Policies;User Id=sa;Password=${SA_PASSWORD}"
+    depends_on: [sqlserver, servicebus]
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+  redis:
+    image: redis:7-alpine
+  servicebus:
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:9.0

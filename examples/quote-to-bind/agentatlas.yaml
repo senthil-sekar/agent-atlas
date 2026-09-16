@@ -1,0 +1,33 @@
+# AgentAtlas configuration for the quote-to-bind example.
+version: 1
+system:
+  name: Quote-to-Bind
+  description: Auto insurance quoting and policy binding for agents and direct customers.
+  owner: Personal Lines Platform
+scan:
+  # Project names start with "Contoso."; drop that so ids match compose and Bicep names.
+  stripPrefixes: [contoso]
+# Local emulators in docker-compose; the logical databases come from connection strings.
+ignore: [sqlserver, servicebus]
+nodes:
+  - id: policy-admin
+    kind: external
+    description: Legacy policy administration system (SOAP, on-premises). Source of truth for issued policies.
+    owner: Policy Systems
+  - id: quote-api
+    owner: Quoting Team
+    description: Creates and prices quotes, and binds accepted quotes.
+  - id: rating-engine
+    owner: Pricing Team
+    description: Calculates premiums from rating factors.
+  - id: apim
+    description: Public API edge. Handles subscription keys and throttling, then forwards to the YARP gateway.
+  - id: policy-worker
+    owner: Policy Systems
+    description: Issues policies in the policy admin system when a quote is bound.
+edges:
+  # Not visible in code: APIM forwards to the gateway via a backend configured in the portal.
+  - from: apim
+    to: gateway
+    kind: calls
+    protocol: https

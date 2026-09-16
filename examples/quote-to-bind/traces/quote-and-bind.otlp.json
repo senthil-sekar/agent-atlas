@@ -1,0 +1,352 @@
+{
+ "resourceSpans": [
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "service.name",
+      "value": {
+       "stringValue": "gateway"
+      }
+     }
+    ]
+   },
+   "scopeSpans": [
+    {
+     "scope": {
+      "name": "manual"
+     },
+     "spans": [
+      {
+       "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+       "spanId": "a1",
+       "name": "POST /v1/quotes",
+       "kind": 2,
+       "startTimeUnixNano": "1726500000000000000",
+       "endTimeUnixNano": "1726500000005000000",
+       "attributes": []
+      },
+      {
+       "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+       "spanId": "a2",
+       "name": "POST quote-api",
+       "kind": 3,
+       "startTimeUnixNano": "1726500000000000001",
+       "endTimeUnixNano": "1726500000005000001",
+       "attributes": [],
+       "parentSpanId": "a1"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "service.name",
+      "value": {
+       "stringValue": "quote-api"
+      }
+     }
+    ]
+   },
+   "scopeSpans": [
+    {
+     "scope": {
+      "name": "manual"
+     },
+     "spans": [
+      {
+       "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+       "spanId": "b1",
+       "name": "POST /v1/quotes",
+       "kind": 2,
+       "startTimeUnixNano": "1726500000000000002",
+       "endTimeUnixNano": "1726500000005000002",
+       "attributes": [],
+       "parentSpanId": "a2"
+      },
+      {
+       "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+       "spanId": "b2",
+       "name": "POST rating-engine /v1/premiums",
+       "kind": 3,
+       "startTimeUnixNano": "1726500000000000003",
+       "endTimeUnixNano": "1726500000005000003",
+       "attributes": [],
+       "parentSpanId": "b1"
+      },
+      {
+       "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+       "spanId": "b3",
+       "name": "INSERT Quotes",
+       "kind": 3,
+       "startTimeUnixNano": "1726500000000000005",
+       "endTimeUnixNano": "1726500000005000005",
+       "attributes": [
+        {
+         "key": "db.system",
+         "value": {
+          "stringValue": "mssql"
+         }
+        },
+        {
+         "key": "db.name",
+         "value": {
+          "stringValue": "quote-db"
+         }
+        },
+        {
+         "key": "db.operation",
+         "value": {
+          "stringValue": "INSERT"
+         }
+        }
+       ],
+       "parentSpanId": "b1"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "service.name",
+      "value": {
+       "stringValue": "rating-engine"
+      }
+     }
+    ]
+   },
+   "scopeSpans": [
+    {
+     "scope": {
+      "name": "manual"
+     },
+     "spans": [
+      {
+       "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+       "spanId": "c1",
+       "name": "POST /v1/premiums",
+       "kind": 2,
+       "startTimeUnixNano": "1726500000000000004",
+       "endTimeUnixNano": "1726500000005000004",
+       "attributes": [],
+       "parentSpanId": "b2"
+      },
+      {
+       "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+       "spanId": "c2",
+       "name": "GET rating-factors",
+       "kind": 3,
+       "startTimeUnixNano": "1726500000000000004",
+       "endTimeUnixNano": "1726500000005000004",
+       "attributes": [
+        {
+         "key": "db.system",
+         "value": {
+          "stringValue": "redis"
+         }
+        },
+        {
+         "key": "db.name",
+         "value": {
+          "stringValue": "redis"
+         }
+        },
+        {
+         "key": "db.operation",
+         "value": {
+          "stringValue": "GET"
+         }
+        }
+       ],
+       "parentSpanId": "c1"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "service.name",
+      "value": {
+       "stringValue": "quote-api"
+      }
+     }
+    ]
+   },
+   "scopeSpans": [
+    {
+     "scope": {
+      "name": "manual"
+     },
+     "spans": [
+      {
+       "traceId": "0af7651916cd43dd8448eb211c80319c",
+       "spanId": "d1",
+       "name": "POST /v1/quotes/{quoteId}/bind",
+       "kind": 2,
+       "startTimeUnixNano": "1726500000000000100",
+       "endTimeUnixNano": "1726500000005000100",
+       "attributes": []
+      },
+      {
+       "traceId": "0af7651916cd43dd8448eb211c80319c",
+       "spanId": "d2",
+       "name": "UPDATE Quotes",
+       "kind": 3,
+       "startTimeUnixNano": "1726500000000000101",
+       "endTimeUnixNano": "1726500000005000101",
+       "attributes": [
+        {
+         "key": "db.system",
+         "value": {
+          "stringValue": "mssql"
+         }
+        },
+        {
+         "key": "db.name",
+         "value": {
+          "stringValue": "quote-db"
+         }
+        },
+        {
+         "key": "db.operation",
+         "value": {
+          "stringValue": "UPDATE"
+         }
+        }
+       ],
+       "parentSpanId": "d1"
+      },
+      {
+       "traceId": "0af7651916cd43dd8448eb211c80319c",
+       "spanId": "d3",
+       "name": "quote-bound publish",
+       "kind": 4,
+       "startTimeUnixNano": "1726500000000000102",
+       "endTimeUnixNano": "1726500000005000102",
+       "attributes": [
+        {
+         "key": "messaging.system",
+         "value": {
+          "stringValue": "servicebus"
+         }
+        },
+        {
+         "key": "messaging.destination.name",
+         "value": {
+          "stringValue": "quote-bound"
+         }
+        }
+       ],
+       "parentSpanId": "d1"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "service.name",
+      "value": {
+       "stringValue": "policy-worker"
+      }
+     }
+    ]
+   },
+   "scopeSpans": [
+    {
+     "scope": {
+      "name": "manual"
+     },
+     "spans": [
+      {
+       "traceId": "0af7651916cd43dd8448eb211c80319c",
+       "spanId": "e1",
+       "name": "quote-bound process",
+       "kind": 5,
+       "startTimeUnixNano": "1726500000000000200",
+       "endTimeUnixNano": "1726500000005000200",
+       "attributes": [
+        {
+         "key": "messaging.system",
+         "value": {
+          "stringValue": "servicebus"
+         }
+        },
+        {
+         "key": "messaging.destination.name",
+         "value": {
+          "stringValue": "quote-bound"
+         }
+        }
+       ],
+       "parentSpanId": "d3"
+      },
+      {
+       "traceId": "0af7651916cd43dd8448eb211c80319c",
+       "spanId": "e2",
+       "name": "IssuePolicy",
+       "kind": 3,
+       "startTimeUnixNano": "1726500000000000201",
+       "endTimeUnixNano": "1726500000005000201",
+       "attributes": [
+        {
+         "key": "peer.service",
+         "value": {
+          "stringValue": "policy-admin"
+         }
+        },
+        {
+         "key": "rpc.system",
+         "value": {
+          "stringValue": "soap"
+         }
+        }
+       ],
+       "parentSpanId": "e1"
+      },
+      {
+       "traceId": "0af7651916cd43dd8448eb211c80319c",
+       "spanId": "e3",
+       "name": "INSERT Policies",
+       "kind": 3,
+       "startTimeUnixNano": "1726500000000000202",
+       "endTimeUnixNano": "1726500000005000202",
+       "attributes": [
+        {
+         "key": "db.system",
+         "value": {
+          "stringValue": "mssql"
+         }
+        },
+        {
+         "key": "db.name",
+         "value": {
+          "stringValue": "policy-db"
+         }
+        },
+        {
+         "key": "db.operation",
+         "value": {
+          "stringValue": "INSERT"
+         }
+        }
+       ],
+       "parentSpanId": "e1"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

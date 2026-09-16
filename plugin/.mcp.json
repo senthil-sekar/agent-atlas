@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "agentatlas": {
+      "command": "npx",
+      "args": ["-y", "agentatlas@0.1", "mcp", "--dir", "${CLAUDE_PROJECT_DIR}"]
+    }
+  }
+}

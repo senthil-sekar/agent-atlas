@@ -1,2 +1,204 @@
-# agent-atlas
-AgentAtlas maps how your services connect and hands that map to AI agents, so they understand your whole system before they touch it.
+# AgentAtlas
+
+**AgentAtlas maps how your services connect and hands that map to AI agents, so they understand your whole system before they touch it.**
+
+AI coding agents see one repo, one folder, or one file at a time. They don't know which services call which, who consumes a message, or what breaks downstream. AgentAtlas builds that map from what you already have (code, compose files, Bicep, OpenAPI specs, and OpenTelemetry traces) and gives it to agents three ways:
+
+| Output | For |
+|---|---|
+| `SYSTEM.md` | Any agent or human. Topology diagram, service tables, dependencies, flows. |
+| `.agentatlas/atlas.yaml` | Tools and CI. The full graph, committed alongside the code. |
+| MCP server (`agentatlas mcp`) | Agents that can call tools: dependencies, callers, blast radius, flow tracing. |
+
+## Quick start
+
+```bash
+npx agentatlas init      # creates agentatlas.yaml
+npx agentatlas scan      # writes .agentatlas/atlas.yaml and SYSTEM.md
+npx agentatlas impact rating-engine
+```
+
+```text
+Changing rating-engine can affect 3 node(s):
+Direct dependents:
+- quote-api [service] (quote-api calls rating-engine)
+2 hops away:
+- gateway [gateway] (gateway calls quote-api)
+3 hops away:
+- apim [gateway] (apim calls gateway)
+Flows that pass through rating-engine: post-v1-quotes
+```
+
+Commit `agentatlas.yaml`, `.agentatlas/atlas.yaml`, and `SYSTEM.md`. Run `agentatlas check` in CI to catch drift.
+
+## What it finds
+
+| Scanner | Reads | Finds |
+|---|---|---|
+| `dotnet` | `*.csproj`, `appsettings*.json` | Web APIs, workers, Functions, YARP/Ocelot gateways; data stores from packages and connection strings; HTTP calls from `*Url`/`*Endpoint`/`*Address` settings; topics, queues, and subscriptions from messaging settings. Test projects are skipped; libraries contribute their packages to the services that reference them. |
+| `node` | `package.json` | Express, Fastify, NestJS, Koa, Hono, Next.js, Nuxt, and Azure Functions apps, with their data and messaging clients |
+| `compose` | `docker-compose*.yml`, `compose*.yaml` | Services and infrastructure containers, `depends_on`, and hostnames in environment variables. Build contexts link compose services to code projects automatically. |
+| `openapi` | `openapi*.yaml/json`, `swagger*.json` | Endpoints, attached to the code project that contains the spec |
+| `bicep` | `*.bicep` | Container Apps, App Service, Functions, API Management, SQL, Cosmos DB, Redis, Service Bus topics and queues, Event Hubs, Storage, AI Search |
+| `otel` | OTLP JSON trace exports | Observed calls, publishes, consumes, and database access, with counts; end-to-end **flows** built from each trace |
+
+Every node and edge records which sources found it. When sources disagree, the manual config wins, then code, then IaC, then traces.
+
+## Using it with agents
+
+### Claude Code
+
+Install the plugin, which adds the MCP server and a skill that tells Claude when to use it:
+
+```
+/plugin marketplace add senthil-sekar/agent-atlas
+/plugin install agentatlas@agentatlas
+```
+
+Then run `/agentatlas:map` to scan, or ask things like "what breaks if I change the quote-bound message?"
+
+Or add only the MCP server:
+
+```bash
+claude mcp add agentatlas -- npx -y agentatlas mcp
+```
+
+### Cursor, VS Code (Copilot), and other MCP clients
+
+```json
+{
+  "mcpServers": {
+    "agentatlas": { "command": "npx", "args": ["-y", "agentatlas", "mcp"] }
+  }
+}
+```
+
+Put this in `.cursor/mcp.json` for Cursor. VS Code uses `.vscode/mcp.json` with `"servers"` as the top-level key.
+
+### Anything else
+
+Point the agent at `SYSTEM.md`, for example with a line in `AGENTS.md`:
+
+```markdown
+Before changing code that crosses a service boundary, read SYSTEM.md.
+```
+
+## MCP tools
+
+All tools are read-only.
+
+| Tool | Answers |
+|---|---|
+| `system_overview` | What is this system? (`brief`, `standard`, or `full`, with an optional token budget) |
+| `get_service` | Everything about one node: tech, hosting, code path, dependencies, users, endpoints, flows |
+| `get_dependencies` | What does X depend on, N hops deep? |
+| `find_callers` | What depends on X? |
+| `impact_of_change` | What could break if X changes, grouped by distance? |
+| `trace_flow` | How does a request get from A to B (following async hops)? Or: show a named flow step by step. |
+| `list_flows` | Which end-to-end flows are known? |
+| `search_atlas` | Where is the thing that handles "bind" or uses Redis? |
+| `render_diagram` | Mermaid diagram of the system or one node's neighborhood |
+
+Resources: `atlas://system.md` and `atlas://atlas.yaml`.
+
+The server reads the committed `.agentatlas/atlas.yaml` and reloads it when it changes. If no atlas file exists, it scans on the fly.
+
+## CLI
+
+```text
+agentatlas init                     Create agentatlas.yaml
+agentatlas scan [--dry-run]         Write .agentatlas/atlas.yaml and SYSTEM.md
+agentatlas check                    Exit 1 if the committed atlas no longer matches the code
+agentatlas summary [--level L]      brief | standard | full   [--max-tokens N]
+agentatlas show <id>                One node in detail
+agentatlas deps <id> [--depth N]    What <id> depends on
+agentatlas callers <id> [--depth N] What depends on <id>
+agentatlas impact <id> [--depth N]  Blast radius
+agentatlas path <from> <to>         Route between two nodes
+agentatlas flow [id] [--diagram]    List flows or show one
+agentatlas diagram [--focus id] [--depth N] [--out file]
+agentatlas mcp                      MCP server on stdio
+```
+
+Every command accepts `--dir <path>`. Ids can be exact (`quote-api`), a project name (`Contoso.Quote.Api`), or a unique fragment (`rating`).
+
+## Configuration
+
+`agentatlas.yaml` names the system and corrects what scanners can't see or get wrong. Everything is optional except `system.name`.
+
+```yaml
+version: 1
+system:
+  name: Quote-to-Bind
+  description: Auto insurance quoting and policy binding.
+  owner: Personal Lines Platform
+
+scan:
+  exclude: ["legacy/**"]                  # added to the defaults (bin, obj, node_modules, …)
+  scanners: [dotnet, compose, openapi, bicep, otel]
+  traces: ["traces/**/*.json"]            # OTLP JSON exports
+  stripPrefixes: [contoso]                # Contoso.Quote.Api → quote-api
+
+aliases:                                  # scanned id → the id you want
+  quoteservice: quote-api
+
+ignore: [sqlserver, azurite]              # local emulators, noise
+
+nodes:                                    # add systems scanners can't see, or enrich found ones
+  - id: policy-admin
+    kind: external
+    description: Legacy policy admin (SOAP, on-premises)
+    owner: Policy Systems
+
+edges:                                    # connections configured outside the code
+  - { from: apim, to: gateway, kind: calls, protocol: https }
+
+flows:                                    # document key journeys by hand
+  - id: first-notice-of-loss
+    name: Report an accident
+    steps:
+      - { from: mobile-app, to: claims-api, action: POST /claims }
+      - { from: claims-api, to: claim-submitted, action: publish ClaimSubmitted }
+```
+
+**Node kinds:** `service`, `function`, `gateway`, `frontend`, `database`, `cache`, `storage`, `search`, `queue`, `topic`, `stream`, `external`.
+
+**Edge kinds** (edges point from the dependent to the dependency): `calls`, `publishes`, `consumes`, `stores`, `depends`.
+
+**Other ways to name a service:** `<AgentAtlasId>` in a `.csproj`, `"agentatlas": { "id": "…" }` in `package.json`, or `x-agentatlas-service` in an OpenAPI document.
+
+## Drift checks in CI
+
+```yaml
+- name: System map is up to date
+  run: npx -y agentatlas check
+```
+
+`check` rescans and compares against the committed atlas. Nodes, edges, tech, and endpoints are compared; trace counts are not. The output lists what changed.
+
+## Example
+
+[`examples/quote-to-bind`](examples/quote-to-bind) is a small auto insurance system: a YARP gateway behind API Management, a quote API, a rating engine, a policy worker fed by a Service Bus topic, SQL, Redis, and a legacy SOAP policy system. Its generated [`SYSTEM.md`](examples/quote-to-bind/SYSTEM.md) shows the output.
+
+```bash
+npm run build && npm run example
+node dist/cli.js path apim policy-admin --dir examples/quote-to-bind
+```
+
+## Works with Draftsman
+
+[Draftsman](https://github.com/senthil-sekar/draftsman) reads `SYSTEM.md` and `.agentatlas/atlas.yaml` when designing new features, so designs start from the system you actually have.
+
+## Development
+
+```bash
+npm install
+npm run build
+npm test
+```
+
+Requires Node.js 20+. See [CONTRIBUTING.md](CONTRIBUTING.md) and the [roadmap](docs/roadmap.md).
+
+## License
+
+MIT

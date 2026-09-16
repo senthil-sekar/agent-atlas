@@ -1,0 +1,14 @@
+openapi: 3.0.3
+info:
+  title: Quote API
+  version: 1.0.0
+paths:
+  /v1/quotes:
+    post:
+      summary: Create and price a quote
+  /v1/quotes/{quoteId}:
+    get:
+      summary: Get a quote
+  /v1/quotes/{quoteId}/bind:
+    post:
+      summary: Bind an accepted quote
