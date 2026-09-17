@@ -44,7 +44,7 @@ service calls which, who consumes a message, what breaks downstream.
   `aws_*` types, with `environment`/`app_settings`/`env` blocks becoming edges the
   same way.
 
-## Later (shipped or scoped this round)
+## Later (shipped this round)
 
 - **Multi-repo atlases** (shipped): `agentatlas merge` combines several repos'
   committed atlases into one system view, reusing the same canonicalize/merge/cleanup
@@ -71,11 +71,6 @@ service calls which, who consumes a message, what breaks downstream.
   `{nodes, edges}` fragment path for tools that do emit one. Checks broken
   references, an id reused for something else, edges crossing team ownership, and
   cycles a design would introduce.
-- **Roslyn-based .NET analysis** (a companion `dotnet tool`) for `HttpClient`
-  registrations, MassTransit/Wolverine consumers, and EF `DbContext`s: still
-  deprioritized. Configuration and route scanning now reach most of the same edges,
-  and 0.3's contract-info work (endpoints from traces) covers more of what a
-  Roslyn pass would add, without a second toolchain to build and ship.
 
 ## Next
 - Contract-aware impact analysis: use `endpoints`/`messageTypes` on edges to scope
