@@ -1,6 +1,8 @@
 import { join, posix } from 'node:path';
+import { parseAllDocuments } from 'yaml';
 import { type NodeKind, emptyResult, normalizeId } from '../model.js';
-import { readText, uniq } from '../util.js';
+import { flatten, readText, uniq } from '../util.js';
+import { interpretSettings } from './settings.js';
 import type { Scanner } from './types.js';
 
 interface Hint { tech: string; kind?: NodeKind; messaging?: boolean; role?: 'gateway' }
@@ -90,6 +92,36 @@ function parseGradle(root: string, rel: string): JavaProject | undefined {
   return { dir, name, deps };
 }
 
+const CONFIG_FILE = /^(application|bootstrap)(-[\w-]+)?\.(ya?ml|properties)$/i;
+const STREAM_BINDING = /^spring:cloud:stream:bindings:([\w.-]+):destination$/i;
+const REDIS_HOST = /^spring:(data:)?redis:host$/i;
+
+/** Spring placeholders: ${DB_HOST:localhost} resolves to its default so the value stays parseable. */
+const resolvePlaceholders = (value: string) => value.replace(/\$\{([^}:]+)(?::-?([^}]*))?\}/g, (_m, _name, def) => def ?? '');
+
+/** Read application.yml/.properties into canonical colon-separated keys. */
+function configEntries(root: string, rel: string): Array<[string, string]> {
+  const text = readText(join(root, rel));
+  if (!text) return [];
+  const raw: Array<[string, string]> = [];
+  if (/\.properties$/i.test(rel)) {
+    for (const line of text.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('!')) continue;
+      const split = trimmed.indexOf('=');
+      if (split > 0) raw.push([trimmed.slice(0, split).trim(), trimmed.slice(split + 1).trim()]);
+    }
+  } else {
+    try {
+      for (const doc of parseAllDocuments(text)) {            // Spring profiles are separate YAML documents
+        const value = doc.toJS({ maxAliasCount: -1 });
+        if (value && typeof value === 'object') raw.push(...flatten(value));
+      }
+    } catch { return []; }
+  }
+  return raw.map(([k, v]) => [k.replace(/\./g, ':'), resolvePlaceholders(v)]);
+}
+
 export const scanJava: Scanner = (ctx) => {
   const result = emptyResult();
   const projects = new Map<string, JavaProject>();
@@ -104,12 +136,18 @@ export const scanJava: Scanner = (ctx) => {
     if (p) projects.set(f, p);
   }
 
+  // Config files belong to the deepest module that contains them.
+  const moduleDirs = [...projects.values()].map((p) => p.dir).sort((a, b) => b.length - a.length);
+  const moduleFor = (dir: string) => moduleDirs.find((d) => dir === d || dir.startsWith(`${d}/`) || d === '.');
+
   for (const p of projects.values()) {
     const fw = FRAMEWORKS.find(([d]) => p.deps.includes(d));
     if (!fw) continue;
     const id = normalizeId(p.name);
     const hints = p.deps.map(hintFor).filter((h): h is Hint => !!h);
     const kind: NodeKind = hints.some((h) => h.role === 'gateway') ? 'gateway' : 'service';
+    const worker = /worker|processor|consumer|job/.test(id);
+    const messagingTech = hints.find((h) => h.messaging)?.tech;
     result.nodes.push({
       id,
       kind,
@@ -118,12 +156,34 @@ export const scanJava: Scanner = (ctx) => {
       repoPath: p.dir,
       sources: ['java'],
     });
-    const namedKinds = new Set<NodeKind>();
+
+    const entries = ctx.files
+      .filter((f) => CONFIG_FILE.test(posix.basename(f)) && moduleFor(posix.dirname(f)) === p.dir)
+      .flatMap((f) => configEntries(ctx.root, f));
+    const found = interpretSettings(entries, { serviceId: id, source: 'java', isWorker: worker, messagingTech });
+    result.nodes.push(...found.nodes);
+    result.edges.push(...found.edges);
+
+    for (const [key, value] of entries) {
+      if (!value) continue;
+      const binding = key.match(STREAM_BINDING)?.[1];
+      if (binding) {
+        // Spring Cloud Stream functional bindings: <function>-in-0 consumes, <function>-out-0 publishes.
+        const consumes = /-in-\d+$/i.test(binding) || (!/-out-\d+$/i.test(binding) && worker);
+        result.nodes.push({ id: normalizeId(value), kind: 'topic', ...(messagingTech ? { tech: [messagingTech] } : {}), sources: ['java'] });
+        result.edges.push({ from: id, to: normalizeId(value), kind: consumes ? 'consumes' : 'publishes', sources: ['java'] });
+      } else if (REDIS_HOST.test(key) && !/^(localhost|127\.)/.test(value)) {
+        result.nodes.push({ id: normalizeId(value), kind: 'cache', tech: ['Redis'], sources: ['java'] });
+        result.edges.push({ from: id, to: normalizeId(value), kind: 'stores', sources: ['java'] });
+      }
+    }
+
+    const namedKinds = new Set<NodeKind>(found.nodes.map((n) => n.kind));
     for (const h of hints) {
       if (h.messaging || !h.kind || namedKinds.has(h.kind)) continue;
       const storeId = `${id}-${normalizeId(h.tech)}`;
       if (result.nodes.some((n) => n.id === storeId)) continue;
-      result.nodes.push({ id: storeId, kind: h.kind, tech: [h.tech], description: `Inferred from a ${h.tech} dependency in ${p.name}; add a manual node or alias to name it.`, sources: ['java'] });
+      result.nodes.push({ id: storeId, kind: h.kind, tech: [h.tech], description: `Inferred from a ${h.tech} dependency in ${p.name}; add a manual node or alias to name it.`, tags: ['inferred'], sources: ['java'] });
       result.edges.push({ from: id, to: storeId, kind: 'stores', sources: ['java'] });
       namedKinds.add(h.kind);
     }

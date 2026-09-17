@@ -7,12 +7,15 @@ import {
 import { scanBicep } from './scanners/bicep.js';
 import { scanCompose } from './scanners/compose.js';
 import { scanDotnet } from './scanners/dotnet.js';
+import { scanEnv } from './scanners/env.js';
 import { scanGo } from './scanners/go.js';
 import { scanJava } from './scanners/java.js';
+import { scanK8s } from './scanners/k8s.js';
 import { scanNode } from './scanners/node.js';
 import { scanOpenApi } from './scanners/openapi.js';
 import { scanOtel } from './scanners/otel.js';
 import { scanPython } from './scanners/python.js';
+import { scanRoutes } from './scanners/routes.js';
 import type { Scanner } from './scanners/types.js';
 import { DEFAULT_EXCLUDES, uniq, walk } from './util.js';
 
@@ -23,9 +26,12 @@ const SCANNERS: Array<[ScannerName, Scanner]> = [
   ['go', scanGo],
   ['python', scanPython],
   ['node', scanNode],
+  ['env', scanEnv],
+  ['routes', scanRoutes],
   ['compose', scanCompose],
   ['openapi', scanOpenApi],
   ['bicep', scanBicep],
+  ['k8s', scanK8s],
   ['otel', scanOtel],
 ];
 
@@ -133,6 +139,21 @@ export function assemble(config: AtlasConfig, raw: ScanResult, warnings: string[
   };
   raw.edges.forEach(addEdge);
   config.edges.forEach((e) => addEdge({ ...e, sources: ['manual'] }));
+
+  // A store inferred from a package gives way to one that configuration actually names.
+  const overlaps = (a?: string[], b?: string[]) => (a ?? []).some((t) => (b ?? []).includes(t));
+  for (const node of [...nodes.values()]) {
+    if (!node.tags?.includes('inferred')) continue;
+    const users = [...edges.values()].filter((e) => e.to === node.id);
+    const superseded = users.length > 0 && users.every((e) => [...edges.values()].some((other) => {
+      const target = nodes.get(other.to);
+      return other.from === e.from && other.to !== node.id && other.kind === e.kind
+        && target?.kind === node.kind && !target.tags?.includes('inferred') && overlaps(target.tech, node.tech);
+    }));
+    if (!superseded) continue;
+    nodes.delete(node.id);
+    for (const [key, e] of edges) if (e.to === node.id) edges.delete(key);
+  }
 
   // A generic "depends" edge is redundant when a more specific edge exists between the same pair.
   for (const [key, e] of edges) {

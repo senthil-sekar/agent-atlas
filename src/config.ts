@@ -10,7 +10,9 @@ export const OUTPUT_DIR = '.agentatlas';
 export const ATLAS_FILE = 'atlas.yaml';
 export const SYSTEM_FILE = 'SYSTEM.md';
 
-export const SCANNER_NAMES = ['dotnet', 'java', 'go', 'python', 'node', 'compose', 'openapi', 'bicep', 'otel'] as const;
+export const SCANNER_NAMES = [
+  'dotnet', 'java', 'go', 'python', 'node', 'env', 'routes', 'compose', 'openapi', 'bicep', 'k8s', 'otel',
+] as const;
 export type ScannerName = (typeof SCANNER_NAMES)[number];
 
 const endpoint = z.object({ method: z.string(), path: z.string(), summary: z.string().optional() });

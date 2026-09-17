@@ -36,13 +36,16 @@ Commit `agentatlas.yaml`, `.agentatlas/atlas.yaml`, and `SYSTEM.md`. Run `agenta
 | Scanner | Reads | Finds |
 |---|---|---|
 | `dotnet` | `*.csproj`, `appsettings*.json` | Web APIs, workers, Functions, YARP/Ocelot gateways; data stores from packages and connection strings; HTTP calls from `*Url`/`*Endpoint`/`*Address` settings; topics, queues, and subscriptions from messaging settings. Test projects are skipped; libraries contribute their packages to the services that reference them. |
-| `java` | `pom.xml`, `build.gradle(.kts)` | Spring Boot, Micronaut, and Quarkus apps, with data and messaging clients from Maven/Gradle dependencies. Aggregator (`packaging: pom`) modules and libraries without a web starter are skipped. |
+| `java` | `pom.xml`, `build.gradle(.kts)`, `application*.yml/.properties` | Spring Boot, Micronaut, and Quarkus apps, with data and messaging clients from Maven/Gradle dependencies. Spring config adds datasources, Redis hosts, Spring Cloud Stream bindings, and client URLs. Aggregator (`packaging: pom`) modules and libraries without a web starter are skipped. |
 | `go` | `go.mod`, `*.go` | One node per `package main` directory (the common `cmd/<service>/main.go` layout), with framework (Gin, Echo, Fiber, chi, gorilla/mux, gRPC) and infra clients from `go.mod` requires. |
 | `python` | `pyproject.toml`, `requirements.txt` | Django, Flask, FastAPI, Tornado, aiohttp, and Starlette apps, with data and messaging clients from their dependencies. Projects without a recognized web framework are skipped. |
 | `node` | `package.json` | Express, Fastify, NestJS, Koa, Hono, Next.js, Nuxt, Remix, Angular, Vue, Svelte, plain React, and Azure Functions apps, with their data and messaging clients |
+| `env` | `.env`, `.env.example`, `.env.*` | Connection strings, service URLs, and topic and queue names, attached to the service whose folder holds the file. Works for every language. Values stay local: only ids, tech, and external origins reach the atlas. |
+| `routes` | `*.java`, `*.kt`, `*.cs`, `*.py`, `*.js/ts`, `*.go` | Endpoints declared in code for services with no OpenAPI document: Spring `@GetMapping`, ASP.NET `[HttpGet]` and `MapGet`, FastAPI and Flask decorators, Express and Nest routes, Gin/Echo/chi registrations |
 | `compose` | `docker-compose*.yml`, `compose*.yaml` | Services and infrastructure containers, `depends_on`, and hostnames in environment variables. Build contexts link compose services to code projects automatically. |
 | `openapi` | `openapi*.yaml/json`, `swagger*.json` | Endpoints, attached to the code project that contains the spec |
-| `bicep` | `*.bicep` | Container Apps, App Service, Functions, API Management, SQL, Cosmos DB, Redis, Service Bus topics and queues, Event Hubs, Storage, AI Search |
+| `bicep` | `*.bicep` | Container Apps, App Service, Functions, API Management, SQL, Cosmos DB, Redis, Service Bus topics and queues, Event Hubs, Storage, AI Search. Container `env:`, `appSettings`, and `connectionStrings` become edges, with `${resource.properties…}` references resolved to the resource they point at. |
+| `k8s` | Kubernetes manifests, Helm `templates/` | Deployments, StatefulSets, DaemonSets, Jobs, and CronJobs, with `env` and `envFrom` config; Services name the workload behind them; Ingress backends become gateway edges; images link workloads to code projects. Helm charts are rendered best-effort from `values.yaml`. |
 | `otel` | OTLP JSON trace exports | Observed calls, publishes, consumes, and database access, with counts; end-to-end **flows** built from each trace |
 
 Every node and edge records which sources found it. When sources disagree, the manual config wins, then code, then IaC, then traces.
@@ -138,7 +141,7 @@ system:
 
 scan:
   exclude: ["legacy/**"]                  # added to the defaults (bin, obj, node_modules, …)
-  scanners: [dotnet, java, go, python, node, compose, openapi, bicep, otel]
+  scanners: [dotnet, java, go, python, node, env, routes, compose, openapi, bicep, k8s, otel]
   traces: ["traces/**/*.json"]            # OTLP JSON exports
   stripPrefixes: [contoso]                # Contoso.Quote.Api → quote-api
 

@@ -56,7 +56,7 @@ export const scanNode: Scanner = (ctx) => {
       if (kind === 'messaging') continue;
       const storeId = `${id}-${normalizeId(tech)}`;
       if (result.nodes.some((n) => n.id === storeId)) continue;
-      result.nodes.push({ id: storeId, kind, tech: [tech], description: `Inferred from a ${tech} package in ${pkg.name}; add a manual node or alias to name it.`, sources: ['node'] });
+      result.nodes.push({ id: storeId, kind, tech: [tech], description: `Inferred from a ${tech} package in ${pkg.name}; add a manual node or alias to name it.`, tags: ['inferred'], sources: ['node'] });
       result.edges.push({ from: id, to: storeId, kind: 'stores', sources: ['node'] });
     }
   }

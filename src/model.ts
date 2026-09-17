@@ -19,7 +19,9 @@ export type NodeKind = (typeof NODE_KINDS)[number];
 export const EDGE_KINDS = ['calls', 'publishes', 'consumes', 'stores', 'depends'] as const;
 export type EdgeKind = (typeof EDGE_KINDS)[number];
 
-export const SOURCES = ['manual', 'dotnet', 'java', 'go', 'python', 'node', 'compose', 'openapi', 'bicep', 'otel'] as const;
+export const SOURCES = [
+  'manual', 'dotnet', 'java', 'go', 'python', 'node', 'env', 'routes', 'compose', 'openapi', 'bicep', 'k8s', 'otel',
+] as const;
 export type Source = (typeof SOURCES)[number];
 
 export const STORE_KINDS: ReadonlySet<NodeKind> = new Set(['database', 'cache', 'storage', 'search']);
