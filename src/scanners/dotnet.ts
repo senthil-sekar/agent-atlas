@@ -151,7 +151,7 @@ export const scanDotnet: Scanner = (ctx) => {
     for (const h of hints) {
       if (!h.kind || namedKinds.has(h.kind)) continue;
       const storeId = `${id}-${normalizeId(h.tech)}`;
-      result.nodes.push({ id: storeId, kind: h.kind, tech: [h.tech], description: `Inferred from a ${h.tech} package in ${p.name}; add a connection string or a manual node to name it.`, sources: ['dotnet'] });
+      result.nodes.push({ id: storeId, kind: h.kind, tech: [h.tech], description: `Inferred from a ${h.tech} package in ${p.name}; add a connection string or a manual node to name it.`, tags: ['inferred'], sources: ['dotnet'] });
       result.edges.push({ from: id, to: storeId, kind: 'stores', sources: ['dotnet'] } satisfies AtlasEdge);
       namedKinds.add(h.kind);
     }

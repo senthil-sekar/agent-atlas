@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { type AtlasEdge, type Flow, type FlowStep, type NodeKind, emptyResult, normalizeId } from '../model.js';
-import { globToRegExp, readText } from '../util.js';
+import { globToRegExp, readText, uniq } from '../util.js';
 import type { Scanner } from './types.js';
 
 const KIND_NAMES: Record<string, number> = {
@@ -57,11 +57,13 @@ export const scanOtel: Scanner = (ctx) => {
   const flows = new Map<string, Flow>();
   const nodeKinds = new Map<string, { kind: NodeKind; tech?: string }>();
 
-  const bump = (from: string, to: string, kind: AtlasEdge['kind'], protocol?: string) => {
+  const bump = (from: string, to: string, kind: AtlasEdge['kind'], protocol?: string, endpoint?: string, messageType?: string) => {
     if (!from || !to || from === to) return;
     const key = `${from}|${to}|${kind}`;
     const e = edges.get(key) ?? { from, to, kind, ...(protocol ? { protocol } : {}), observed: 0, sources: ['otel'] };
     e.observed = (e.observed ?? 0) + 1;
+    if (endpoint) e.endpoints = uniq([...(e.endpoints ?? []), endpoint]);
+    if (messageType) e.messageTypes = uniq([...(e.messageTypes ?? []), messageType]);
     edges.set(key, e);
   };
 
@@ -91,19 +93,23 @@ export const scanOtel: Scanner = (ctx) => {
       const dest = a['messaging.destination.name'] ?? a['messaging.destination'];
       const msgSystem = a['messaging.system'];
 
+      const messageType = a['messaging.message.type'] ?? a['messaging.message.type.name'] ?? a['messaging.event.type'];
+
       if (s.kind === SERVER && parent && parent.service !== s.service) {
         const protocol = a['rpc.system'] === 'grpc' ? 'grpc' : 'http';
-        bump(parent.service, s.service, 'calls', protocol);
+        // The server span's own name is the route it serves, e.g. "POST /v1/quotes".
+        const endpoint = /^[A-Z]+\s+\S/.test(s.name) ? s.name : undefined;
+        bump(parent.service, s.service, 'calls', protocol, endpoint);
         step(s, parent.service, s.service, s.name);
       } else if (s.kind === PRODUCER && dest) {
         const id = normalizeId(dest);
         nodeKinds.set(id, { kind: /queue/i.test(a['messaging.destination.kind'] ?? '') ? 'queue' : 'topic', tech: MESSAGING_TECH[msgSystem ?? ''] });
-        bump(s.service, id, 'publishes');
+        bump(s.service, id, 'publishes', undefined, undefined, messageType);
         step(s, s.service, id, `publish ${dest}`);
       } else if (s.kind === CONSUMER && dest) {
         const id = normalizeId(dest);
         if (!nodeKinds.has(id)) nodeKinds.set(id, { kind: 'topic', tech: MESSAGING_TECH[msgSystem ?? ''] });
-        bump(s.service, id, 'consumes');
+        bump(s.service, id, 'consumes', undefined, undefined, messageType);
         step(s, id, s.service, s.name || `consume ${dest}`);
       } else if (s.kind === CLIENT && (a['db.system'] || a['db.system.name'])) {
         const system = a['db.system'] ?? a['db.system.name']!;

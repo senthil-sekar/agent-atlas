@@ -2,17 +2,23 @@ import { resolve } from 'node:path';
 import { type AtlasConfig, type ScannerName, loadConfig } from './config.js';
 import {
   type Atlas, type AtlasEdge, type AtlasNode, type Flow, type ScanResult, type Source,
-  COMPUTE_KINDS, SOURCES, normalizeId,
+  COMPUTE_KINDS, SOURCES, UNRESOLVED_EXTERNAL, normalizeId,
 } from './model.js';
+import { scanAsyncApi } from './scanners/asyncapi.js';
 import { scanBicep } from './scanners/bicep.js';
+import { scanCodeowners } from './scanners/codeowners.js';
 import { scanCompose } from './scanners/compose.js';
 import { scanDotnet } from './scanners/dotnet.js';
+import { scanEnv } from './scanners/env.js';
 import { scanGo } from './scanners/go.js';
 import { scanJava } from './scanners/java.js';
+import { scanK8s } from './scanners/k8s.js';
 import { scanNode } from './scanners/node.js';
 import { scanOpenApi } from './scanners/openapi.js';
 import { scanOtel } from './scanners/otel.js';
 import { scanPython } from './scanners/python.js';
+import { scanRoutes } from './scanners/routes.js';
+import { scanTerraform } from './scanners/terraform.js';
 import type { Scanner } from './scanners/types.js';
 import { DEFAULT_EXCLUDES, uniq, walk } from './util.js';
 
@@ -23,9 +29,15 @@ const SCANNERS: Array<[ScannerName, Scanner]> = [
   ['go', scanGo],
   ['python', scanPython],
   ['node', scanNode],
+  ['env', scanEnv],
+  ['routes', scanRoutes],
+  ['codeowners', scanCodeowners],
   ['compose', scanCompose],
   ['openapi', scanOpenApi],
   ['bicep', scanBicep],
+  ['terraform', scanTerraform],
+  ['k8s', scanK8s],
+  ['asyncapi', scanAsyncApi],
   ['otel', scanOtel],
 ];
 
@@ -92,6 +104,7 @@ export function assemble(config: AtlasConfig, raw: ScanResult, warnings: string[
     const kind = cur.kind === 'external' ? n.kind : n.kind === 'external' ? cur.kind
       : incomingWins ? n.kind : cur.kind;
     const endpoints = [...(cur.endpoints ?? []), ...(n.endpoints ?? [])];
+    const messages = [...(cur.messages ?? []), ...(n.messages ?? [])];
     const merged: AtlasNode = {
       id: n.id,
       kind,
@@ -102,6 +115,7 @@ export function assemble(config: AtlasConfig, raw: ScanResult, warnings: string[
       hosting: pick('hosting'),
       repoPath: pick('repoPath'),
       endpoints: [...new Map(endpoints.map((e) => [`${e.method} ${e.path}`, e])).values()],
+      messages: [...new Map(messages.map((m) => [m.name, m])).values()],
       tags: uniq([...(cur.tags ?? []), ...(n.tags ?? [])]),
       sources: uniq([...cur.sources, ...n.sources]),
     };
@@ -118,7 +132,7 @@ export function assemble(config: AtlasConfig, raw: ScanResult, warnings: string[
     const e = { ...incoming, from: canon(incoming.from), to: canon(incoming.to) };
     if (e.from === e.to || ignored.has(e.from) || ignored.has(e.to)) return;
     for (const end of [e.from, e.to]) {
-      if (!nodes.has(end)) nodes.set(end, { id: end, kind: 'external', description: 'Referenced but not found by any scanner.', sources: [...e.sources] });
+      if (!nodes.has(end)) nodes.set(end, { id: end, kind: 'external', description: UNRESOLVED_EXTERNAL, sources: [...e.sources] });
     }
     const key = `${e.from}|${e.to}|${e.kind}`;
     const cur = edges.get(key);
@@ -126,6 +140,8 @@ export function assemble(config: AtlasConfig, raw: ScanResult, warnings: string[
     edges.set(key, {
       ...cur,
       protocol: cur.protocol ?? e.protocol,
+      endpoints: cur.endpoints?.length || e.endpoints?.length ? uniq([...(cur.endpoints ?? []), ...(e.endpoints ?? [])]) : undefined,
+      messageTypes: cur.messageTypes?.length || e.messageTypes?.length ? uniq([...(cur.messageTypes ?? []), ...(e.messageTypes ?? [])]) : undefined,
       description: e.sources.includes('manual') ? e.description ?? cur.description : cur.description ?? e.description,
       observed: cur.observed !== undefined || e.observed !== undefined ? (cur.observed ?? 0) + (e.observed ?? 0) : undefined,
       sources: uniq([...cur.sources, ...e.sources]),
@@ -133,6 +149,29 @@ export function assemble(config: AtlasConfig, raw: ScanResult, warnings: string[
   };
   raw.edges.forEach(addEdge);
   config.edges.forEach((e) => addEdge({ ...e, sources: ['manual'] }));
+
+  // A store inferred from a package gives way to one that configuration actually names.
+  const overlaps = (a?: string[], b?: string[]) => (a ?? []).some((t) => (b ?? []).includes(t));
+  for (const node of [...nodes.values()]) {
+    if (!node.tags?.includes('inferred')) continue;
+    const users = [...edges.values()].filter((e) => e.to === node.id);
+    const superseded = users.length > 0 && users.every((e) => [...edges.values()].some((other) => {
+      const target = nodes.get(other.to);
+      return other.from === e.from && other.to !== node.id && other.kind === e.kind
+        && target?.kind === node.kind && !target.tags?.includes('inferred') && overlaps(target.tech, node.tech);
+    }));
+    if (!superseded) continue;
+    nodes.delete(node.id);
+    for (const [key, e] of edges) if (e.to === node.id) edges.delete(key);
+  }
+
+  // When a topic's contract is unambiguous (exactly one message type), attach it to the edges touching it.
+  for (const e of edges.values()) {
+    if (e.kind !== 'publishes' && e.kind !== 'consumes') continue;
+    if (e.messageTypes?.length) continue; // a scanner already knows precisely
+    const topic = nodes.get(e.to); // edges always point from the dependent to the topic/queue/stream
+    if (topic?.messages?.length === 1) e.messageTypes = [topic.messages[0]!.name];
+  }
 
   // A generic "depends" edge is redundant when a more specific edge exists between the same pair.
   for (const [key, e] of edges) {
@@ -167,7 +206,9 @@ export function assemble(config: AtlasConfig, raw: ScanResult, warnings: string[
     }
     return out;
   };
-  const EDGE_ORDER: Array<keyof AtlasEdge> = ['from', 'to', 'kind', 'protocol', 'description', 'observed', 'sources'];
+  const EDGE_ORDER: Array<keyof AtlasEdge> = [
+    'from', 'to', 'kind', 'protocol', 'endpoints', 'messageTypes', 'description', 'observed', 'sources',
+  ];
   const cleanEdge = (e: AtlasEdge): AtlasEdge =>
     Object.fromEntries(EDGE_ORDER.filter((k) => e[k] !== undefined).map((k) => [k, e[k]])) as unknown as AtlasEdge;
 

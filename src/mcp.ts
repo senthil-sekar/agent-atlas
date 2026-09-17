@@ -6,7 +6,9 @@ import { z } from 'zod';
 import { buildAtlas } from './build.js';
 import { AtlasGraph } from './graph.js';
 import { atlasPath, readAtlas, serializeAtlas } from './io.js';
+import { pack } from './pack.js';
 import { flowDiagram, topologyDiagram } from './render/mermaid.js';
+import { describeValidation, parseProposedDesign, validateDesign } from './validate.js';
 import { renderSystemMd } from './render/system-md.js';
 import { describeFlow, describeImpact, describeNode, describePath, hopList, summary } from './render/text.js';
 import { VERSION } from './version.js';
@@ -44,8 +46,9 @@ export function createServer(dir: string): McpServer {
     { name: 'agentatlas', version: VERSION },
     {
       instructions:
-        'AgentAtlas describes how the services in this system connect. Call system_overview first, ' +
-        'then get_service before changing a service, and impact_of_change before changing a contract, schema, or message.',
+        'AgentAtlas describes how the services in this system connect. Call system_overview first. ' +
+        'Once you know which node you are changing, prefer pack_context over get_service — it adds transitive ' +
+        'impact and flow detail, trimmed to a token budget. Call impact_of_change before changing a contract, schema, or message.',
     },
   );
 
@@ -71,6 +74,21 @@ export function createServer(dir: string): McpServer {
   }, async ({ level, maxTokens }) => {
     const g = source.get();
     return text(summary(g, level, maxTokens) + source.note);
+  });
+
+  server.registerTool('pack_context', {
+    title: 'Pack context',
+    description: 'The smallest map you need before changing one node: its direct dependencies and callers, transitive impact and dependencies, and flows through it — trimmed to a token budget. Cheaper than system_overview when you already know which node you are touching.',
+    inputSchema: {
+      id: z.string().describe('Node id or name, e.g. "quote-api"'),
+      depth: z.number().int().min(1).max(6).default(2).describe('How many hops of transitive dependencies and impact to include'),
+      maxTokens: z.number().int().positive().optional().describe('Truncate the answer to roughly this many tokens, dropping the least important sections first'),
+    },
+    annotations: readOnly,
+  }, async ({ id, depth, maxTokens }) => {
+    const g = source.get();
+    const r = lookup(g, id);
+    return r.node ? text(pack(g, r.node.id, { depth, maxTokens }) + source.note) : fail(r.error!);
   });
 
   server.registerTool('get_service', {
@@ -176,6 +194,19 @@ export function createServer(dir: string): McpServer {
       id = r.node.id;
     }
     return text(`\`\`\`mermaid\n${topologyDiagram(g, { focus: id, depth })}\n\`\`\``);
+  });
+
+  server.registerTool('validate_design', {
+    title: 'Validate design',
+    description: 'Check a proposed design against the live system: broken references, an id reused for something different, edges crossing team ownership, and cycles the design would add. Pass a Mermaid flowchart (a design doc\'s container/component view) or a {nodes, edges} fragment.',
+    inputSchema: { design: z.string().min(1).describe('A Mermaid flowchart, a Markdown doc containing one, or a YAML/JSON {nodes, edges} fragment') },
+    annotations: readOnly,
+  }, async ({ design }) => {
+    const g = source.get();
+    let parsed;
+    try { parsed = parseProposedDesign(design); } catch (err) { return fail(`Could not parse the design: ${err instanceof Error ? err.message : String(err)}`); }
+    if (!parsed.nodes.length) return fail('No nodes found: pass a Mermaid flowchart (```mermaid fenced or bare) or a {nodes, edges} fragment.');
+    return text(describeValidation(validateDesign(g, parsed)));
   });
 
   server.registerResource('system-map', 'atlas://system.md', {

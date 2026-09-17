@@ -22,6 +22,11 @@ function nodeChanges(a: AtlasNode, b: AtlasNode): string[] {
   const addedE = [...be].filter((e) => !ae.has(e)), removedE = [...ae].filter((e) => !be.has(e));
   if (addedE.length) changes.push(`endpoints +${addedE.join(', +')}`);
   if (removedE.length) changes.push(`endpoints -${removedE.join(', -')}`);
+  const am = new Set((a.messages ?? []).map((m) => m.name));
+  const bm = new Set((b.messages ?? []).map((m) => m.name));
+  const addedM = [...bm].filter((m) => !am.has(m)), removedM = [...am].filter((m) => !bm.has(m));
+  if (addedM.length) changes.push(`messages +${addedM.join(', +')}`);
+  if (removedM.length) changes.push(`messages -${removedM.join(', -')}`);
   return changes;
 }
 

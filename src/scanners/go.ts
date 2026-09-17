@@ -97,7 +97,7 @@ export const scanGo: Scanner = (ctx) => {
       if (h.messaging || !h.kind || namedKinds.has(h.kind)) continue;
       const storeId = `${id}-${normalizeId(h.tech)}`;
       if (result.nodes.some((n) => n.id === storeId)) continue;
-      result.nodes.push({ id: storeId, kind: h.kind, tech: [h.tech], description: `Inferred from a ${h.tech} import in ${mod.name}; add a manual node or alias to name it.`, sources: ['go'] });
+      result.nodes.push({ id: storeId, kind: h.kind, tech: [h.tech], description: `Inferred from a ${h.tech} import in ${mod.name}; add a manual node or alias to name it.`, tags: ['inferred'], sources: ['go'] });
       result.edges.push({ from: id, to: storeId, kind: 'stores', sources: ['go'] });
       namedKinds.add(h.kind);
     }

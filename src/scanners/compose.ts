@@ -22,7 +22,13 @@ const IMAGES: Array<[RegExp, NodeKind, string]> = [
   [/jaeger|otel|prometheus|grafana|seq|zipkin|aspire-dashboard/, 'external', 'Observability'],
 ];
 
-const OBSERVABILITY = /jaeger|otel|prometheus|grafana|seq|zipkin|aspire-dashboard/;
+export const OBSERVABILITY = /jaeger|otel|prometheus|grafana|seq|zipkin|aspire-dashboard/;
+
+/** What a container image says a node is, shared with the Kubernetes scanner. */
+export const imageHint = (image: string): [NodeKind, string] | undefined => {
+  const match = IMAGES.find(([re]) => re.test(image.toLowerCase()));
+  return match ? [match[1], match[2]] : undefined;
+};
 
 function envEntries(env: unknown): Array<[string, string]> {
   if (Array.isArray(env)) {

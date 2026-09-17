@@ -9,19 +9,63 @@ resource env 'Microsoft.App/managedEnvironments@2024-03-01' = {
 resource quoteApi 'Microsoft.App/containerApps@2024-03-01' = {
   name: '${prefix}-quote-api'
   location: location
-  properties: { managedEnvironmentId: env.id }
+  properties: {
+    managedEnvironmentId: env.id
+    template: {
+      containers: [
+        {
+          name: 'quote-api'
+          image: 'contoso.azurecr.io/quote-api:latest'
+          env: [
+            { name: 'ConnectionStrings__QuoteDb', value: 'Server=sql;Database=${quoteDb.name}' }
+            { name: 'ConnectionStrings__Redis', value: '${redis.properties.hostName}:6380' }
+            { name: 'RatingEngine__BaseUrl', value: 'https://${ratingEngine.properties.configuration.ingress.fqdn}' }
+            { name: 'ServiceBus__Topic', value: quoteBound.name }
+          ]
+        }
+      ]
+    }
+  }
 }
 
 resource ratingEngine 'Microsoft.App/containerApps@2024-03-01' = {
   name: '${prefix}-rating-engine'
   location: location
-  properties: { managedEnvironmentId: env.id }
+  properties: {
+    managedEnvironmentId: env.id
+    template: {
+      containers: [
+        {
+          name: 'rating-engine'
+          image: 'contoso.azurecr.io/rating-engine:latest'
+          env: [
+            { name: 'ConnectionStrings__Redis', value: '${redis.properties.hostName}:6380' }
+          ]
+        }
+      ]
+    }
+  }
 }
 
 resource policyWorker 'Microsoft.App/containerApps@2024-03-01' = {
   name: '${prefix}-policy-worker'
   location: location
-  properties: { managedEnvironmentId: env.id }
+  properties: {
+    managedEnvironmentId: env.id
+    template: {
+      containers: [
+        {
+          name: 'policy-worker'
+          image: 'contoso.azurecr.io/policy-worker:latest'
+          env: [
+            { name: 'ConnectionStrings__PolicyDb', value: 'Server=sql;Database=${policyDb.name}' }
+            { name: 'ServiceBus__Topic', value: quoteBound.name }
+            { name: 'ServiceBus__Subscription', value: '${quoteBound.name}/policy-worker' }
+          ]
+        }
+      ]
+    }
+  }
 }
 
 resource apim 'Microsoft.ApiManagement/service@2023-05-01-preview' = {

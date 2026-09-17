@@ -1,15 +1,22 @@
 #!/usr/bin/env node
-import { writeFileSync } from 'node:fs';
-import { relative, resolve } from 'node:path';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { buildAtlas } from './build.js';
-import { CONFIG_FILE, ConfigError, initConfig, loadConfig } from './config.js';
+import { CONFIG_FILE, ConfigError, initConfig, loadConfig, loadConfigFile } from './config.js';
+import { describeDoctor, diagnose } from './doctor.js';
 import { describeDrift, diffAtlas, hasDrift } from './drift.js';
 import { AtlasGraph } from './graph.js';
 import { readAtlas, serializeAtlas, writeOutputs } from './io.js';
 import { runStdioServer } from './mcp.js';
+import { defaultMergeName, emptyMergeConfig, loadMergeSources, mergeAtlases } from './merge.js';
+import { pack } from './pack.js';
 import { flowDiagram, topologyDiagram } from './render/mermaid.js';
 import { describeFlow, describeImpact, describeNode, describePath, hopList, summary, type SummaryLevel } from './render/text.js';
+import { fetchApplicationInsightsTraces } from './traces/appinsights.js';
+import { fetchJaegerTraces } from './traces/jaeger.js';
+import { readText } from './util.js';
+import { describeValidation, parseProposedDesign, validateDesign } from './validate.js';
 import { VERSION } from './version.js';
 
 const HELP = `agentatlas ${VERSION}: map how your services connect, for humans and AI agents.
@@ -20,14 +27,22 @@ Commands
   init                     Create agentatlas.yaml in the target directory
   scan                     Scan code, config, IaC, and traces; write .agentatlas/atlas.yaml and SYSTEM.md
   check                    Fail (exit 1) if the committed atlas no longer matches the code
+  doctor                   Report what scanners could not resolve, with paste-ready fixes
   summary                  Print a system summary        [--level brief|standard|full] [--max-tokens N]
   show <id>                Show one service, store, topic, or external system
+  pack <id>                The smallest map an agent needs before changing <id> [--depth N] [--max-tokens N]
   deps <id>                What <id> depends on          [--depth N]
   callers <id>             What depends on <id>          [--depth N]
   impact <id>              Blast radius of changing <id> [--depth N]
   path <from> <to>         How a request or message travels from <from> to <to>
   flow [id]                List flows, or show one       [--diagram]
   diagram                  Print a Mermaid diagram       [--focus id] [--depth N] [--out file]
+  merge <dir...>           Combine several repos' committed atlases into one [--out dir] [--name] [--config file]
+  fetch-traces             Fetch traces from Jaeger or Application Insights, write OTLP JSON for \`scan\` to read
+                             --source jaeger --url <base> --service <name> [--limit N] [--out file]
+                             --source appinsights --app-id <id> [--limit N] [--out file]
+                             (Jaeger token: --api-key or JAEGER_TOKEN; App Insights key: --api-key or APPLICATIONINSIGHTS_API_KEY)
+  validate <file>          Check a proposed design (a Mermaid flowchart or a {nodes,edges} fragment) against the live atlas
   mcp                      Start the MCP server on stdio
 
 Options
@@ -49,6 +64,14 @@ function main(argv: string[]): number | Promise<number> {
       'max-tokens': { type: 'string' },
       focus: { type: 'string' },
       out: { type: 'string' },
+      name: { type: 'string' },
+      config: { type: 'string' },
+      source: { type: 'string' },
+      service: { type: 'string' },
+      url: { type: 'string' },
+      'app-id': { type: 'string' },
+      'api-key': { type: 'string' },
+      limit: { type: 'string' },
       diagram: { type: 'boolean', default: false },
       'dry-run': { type: 'boolean', default: false },
       force: { type: 'boolean', default: false },
@@ -109,6 +132,16 @@ function main(argv: string[]): number | Promise<number> {
       console.log(describeDrift(drift));
       return hasDrift(drift) ? 1 : 0;
     }
+    case 'doctor': {
+      console.log(describeDoctor(diagnose(loadGraph().atlas)));
+      return 0;
+    }
+    case 'pack': {
+      const g = loadGraph();
+      const n = need(g, args[0]);
+      console.log(pack(g, n.id, { depth, maxTokens: values['max-tokens'] ? Number(values['max-tokens']) : undefined }));
+      return 0;
+    }
     case 'summary': {
       const level = values.level as SummaryLevel;
       if (!['brief', 'standard', 'full'].includes(level)) throw new UsageError('--level must be brief, standard, or full');
@@ -162,11 +195,66 @@ function main(argv: string[]): number | Promise<number> {
       } else console.log(mermaid);
       return 0;
     }
+    case 'merge': {
+      if (args.length < 2) throw new UsageError('Usage: agentatlas merge <dir1> <dir2> [...] --out <dir> [--name "System name"] [--config file]');
+      if (!values.out) throw new UsageError('merge requires --out <dir> to write the combined atlas.yaml and SYSTEM.md');
+      const inputs = loadMergeSources(args);
+      const base = values.config ? loadConfigFile(resolve(values.config)) : emptyMergeConfig(defaultMergeName(inputs));
+      const mergeConfig = values.name ? { ...base, system: { ...base.system, name: values.name } } : base;
+      const atlas = mergeAtlases(inputs, mergeConfig);
+      const written = writeOutputs(values.out, atlas);
+      console.log(`Merged ${inputs.length} repos into ${atlas.system.name}: ${atlas.nodes.length} nodes, ${atlas.edges.length} edges, ${atlas.flows.length} flows.`);
+      written.forEach((w) => console.log(`Wrote ${relative(process.cwd(), w)}`));
+      return 0;
+    }
+    case 'fetch-traces':
+      return runFetchTraces(dir, values);
+    case 'validate': {
+      const g = loadGraph();
+      const file = args[0];
+      if (!file) throw new UsageError('Usage: agentatlas validate <file>');
+      const text = readText(resolve(file));
+      if (text === undefined) throw new UsageError(`File not found: ${file}`);
+      const findings = validateDesign(g, parseProposedDesign(text));
+      console.log(describeValidation(findings));
+      return findings.some((f) => f.level === 'warning') ? 1 : 0;
+    }
     case 'mcp':
       return runStdioServer(dir).then(() => -1);
     default:
       throw new UsageError(`Unknown command "${command}".`);
   }
+}
+
+async function runFetchTraces(dir: string, values: {
+  source?: string; url?: string; service?: string; 'app-id'?: string; 'api-key'?: string; limit?: string; out?: string;
+}): Promise<number> {
+  const limit = values.limit ? Number(values.limit) : undefined;
+  let otlp: unknown;
+  let defaultPath: string;
+
+  if (values.source === 'jaeger') {
+    if (!values.url) throw new UsageError('--source jaeger requires --url <jaeger-base-url>');
+    if (!values.service) throw new UsageError('--source jaeger requires --service <name>');
+    const token = values['api-key'] ?? process.env.JAEGER_TOKEN;
+    otlp = await fetchJaegerTraces(values.url, values.service, { limit, token });
+    defaultPath = join(dir, 'traces', `${values.service}.jaeger.json`);
+  } else if (values.source === 'appinsights') {
+    if (!values['app-id']) throw new UsageError('--source appinsights requires --app-id <application-id>');
+    const apiKey = values['api-key'] ?? process.env.APPLICATIONINSIGHTS_API_KEY;
+    if (!apiKey) throw new UsageError('--source appinsights requires --api-key (or set APPLICATIONINSIGHTS_API_KEY)');
+    otlp = await fetchApplicationInsightsTraces(values['app-id'], apiKey, { take: limit });
+    defaultPath = join(dir, 'traces', `${values['app-id']}.appinsights.json`);
+  } else {
+    throw new UsageError('fetch-traces requires --source jaeger or --source appinsights');
+  }
+
+  const out = values.out ? resolve(values.out) : defaultPath;
+  mkdirSync(dirname(out), { recursive: true });
+  writeFileSync(out, JSON.stringify(otlp, null, 2));
+  console.log(`Wrote ${relative(process.cwd(), out)}`);
+  console.log('Run `agentatlas scan` to fold these traces into the atlas.');
+  return 0;
 }
 
 class UsageError extends Error {}

@@ -109,7 +109,7 @@ export const scanPython: Scanner = (ctx) => {
       if (h.messaging || !h.kind || namedKinds.has(h.kind)) continue;
       const storeId = `${id}-${normalizeId(h.tech)}`;
       if (result.nodes.some((n) => n.id === storeId)) continue;
-      result.nodes.push({ id: storeId, kind: h.kind, tech: [h.tech], description: `Inferred from a ${h.tech} package in ${p.name}; add a manual node or alias to name it.`, sources: ['python'] });
+      result.nodes.push({ id: storeId, kind: h.kind, tech: [h.tech], description: `Inferred from a ${h.tech} package in ${p.name}; add a manual node or alias to name it.`, tags: ['inferred'], sources: ['python'] });
       result.edges.push({ from: id, to: storeId, kind: 'stores', sources: ['python'] });
       namedKinds.add(h.kind);
     }

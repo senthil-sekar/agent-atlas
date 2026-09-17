@@ -155,6 +155,8 @@ edges:
     to: quote-api
     kind: calls
     protocol: http
+    endpoints:
+      - POST /v1/quotes
     observed: 1
     sources:
       - dotnet
@@ -175,6 +177,7 @@ edges:
     sources:
       - dotnet
       - compose
+      - bicep
       - otel
   - from: policy-worker
     to: quote-bound
@@ -182,6 +185,7 @@ edges:
     observed: 1
     sources:
       - dotnet
+      - bicep
       - otel
   - from: quote-api
     to: quote-bound
@@ -189,6 +193,7 @@ edges:
     observed: 1
     sources:
       - dotnet
+      - bicep
       - otel
   - from: quote-api
     to: quote-db
@@ -197,15 +202,19 @@ edges:
     sources:
       - dotnet
       - compose
+      - bicep
       - otel
   - from: quote-api
     to: rating-engine
     kind: calls
     protocol: http
+    endpoints:
+      - POST /v1/premiums
     observed: 1
     sources:
       - dotnet
       - compose
+      - bicep
       - otel
   - from: quote-api
     to: redis
@@ -213,6 +222,7 @@ edges:
     sources:
       - dotnet
       - compose
+      - bicep
   - from: rating-engine
     to: redis
     kind: stores
@@ -220,6 +230,7 @@ edges:
     sources:
       - dotnet
       - compose
+      - bicep
       - otel
 flows:
   - id: post-v1-quotes

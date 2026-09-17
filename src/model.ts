@@ -19,16 +19,27 @@ export type NodeKind = (typeof NODE_KINDS)[number];
 export const EDGE_KINDS = ['calls', 'publishes', 'consumes', 'stores', 'depends'] as const;
 export type EdgeKind = (typeof EDGE_KINDS)[number];
 
-export const SOURCES = ['manual', 'dotnet', 'java', 'go', 'python', 'node', 'compose', 'openapi', 'bicep', 'otel'] as const;
+export const SOURCES = [
+  'manual', 'dotnet', 'java', 'go', 'python', 'node', 'env', 'routes', 'codeowners',
+  'compose', 'openapi', 'bicep', 'terraform', 'k8s', 'asyncapi', 'otel',
+] as const;
 export type Source = (typeof SOURCES)[number];
 
 export const STORE_KINDS: ReadonlySet<NodeKind> = new Set(['database', 'cache', 'storage', 'search']);
 export const MESSAGING_KINDS: ReadonlySet<NodeKind> = new Set(['queue', 'topic', 'stream']);
 export const COMPUTE_KINDS: ReadonlySet<NodeKind> = new Set(['service', 'function', 'gateway', 'frontend']);
 
+/** Placeholder description for a node an edge points at that no scanner or config ever named. */
+export const UNRESOLVED_EXTERNAL = 'Referenced but not found by any scanner.';
+
 export interface Endpoint {
   method: string;
   path: string;
+  summary?: string;
+}
+
+export interface Message {
+  name: string;
   summary?: string;
 }
 
@@ -42,6 +53,8 @@ export interface AtlasNode {
   hosting?: string;
   repoPath?: string;
   endpoints?: Endpoint[];
+  /** Message/event types a topic, queue, or stream carries (from AsyncAPI). */
+  messages?: Message[];
   tags?: string[];
   sources: Source[];
 }
@@ -51,6 +64,10 @@ export interface AtlasEdge {
   to: string;
   kind: EdgeKind;
   protocol?: string;
+  /** For `calls` edges: endpoints of `to` this edge is known to hit. */
+  endpoints?: string[];
+  /** For `publishes`/`consumes` edges: message or event type names known for this edge. */
+  messageTypes?: string[];
   description?: string;
   /** Number of times this interaction appeared in traces. */
   observed?: number;
