@@ -26,6 +26,23 @@ attach to a service's folder (`env`, `routes`) use `ownerOf` from `src/scanners/
 A store guessed from a dependency rather than named by configuration is tagged `inferred`. The build
 drops it once a real store of the same kind and technology is found, so guesses never outlive facts.
 
+## Contract info: endpoints and message types
+
+`AtlasEdge.endpoints` (which route of the target a `calls` edge hits) and `AtlasEdge.messageTypes`
+(which message a `publishes`/`consumes` edge carries) are additive evidence, not something every
+scanner needs to fill in. Today `otel` sources both from real traffic, and `assemble()` auto-attaches
+a topic's message type to its edges when the topic's `messages` catalog (from `asyncapi`) is
+unambiguous. Don't guess a specific endpoint or message type from static analysis alone — a call
+site rarely proves which of a target's several endpoints it hits.
+
+## Talking to a live backend (never from a scanner)
+
+Scanners are read-only and network-free on purpose (see above), so anything that fetches from a live
+service — `src/traces/jaeger.ts`, `src/traces/appinsights.ts` — is a separate CLI action
+(`fetch-traces`) that writes a file a scanner then reads, never a scanner itself. Keep the network
+call and the pure conversion-to-OTLP-JSON in separate functions; the converter should be trivially
+unit-testable with a dependency-injected `fetchImpl`, with no real network access required to test it.
+
 ## Changing the example
 
 The example's generated files are committed and checked by the tests. After changing anything in `examples/quote-to-bind`, run `npm run build && npm run example` and commit the regenerated files.

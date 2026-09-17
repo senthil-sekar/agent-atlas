@@ -7,52 +7,80 @@
 - Drift check for CI
 - Claude Code plugin
 
-## 0.2 — edges, not just nodes
+## 0.2 — edges, not just nodes (shipped)
 
 A service inventory is not a map. The value of the atlas is in its edges: which
-service calls which, who consumes a message, what breaks downstream. Today only
-.NET (via `appsettings.json`), Docker Compose, and OpenTelemetry traces produce
-those edges. Every other scanner contributes nodes and little else — Bicep finds
-resources but no wiring, and the Java, Go, Python, and Node scanners find
-services but no dependencies between them.
+service calls which, who consumes a message, what breaks downstream.
 
-0.2 closes that gap.
-
-- **Configuration as a first-class source.** `interpretSettings` becomes the
-  shared spine every scanner feeds, with key normalization so environment-variable
-  style (`QUOTE_API_URL`, `SPRING_DATASOURCE_URL`, `ConnectionStrings__Quote`)
-  and nested config reach the same heuristics:
-  - a `.env` scanner that serves every language
-  - Spring `application.yml` / `application.properties`, including profile variants
-    and `spring.cloud.stream` bindings
-  - URL and connection-string literals from source configuration modules
+- **Configuration as a first-class source.** `interpretSettings` is the shared spine
+  every scanner feeds, with key normalization so environment-variable style
+  (`QUOTE_API_URL`, `ConnectionStrings__Quote`) and nested config reach the same
+  heuristics: a `.env` scanner serving every language, Spring `application.yml`/
+  `.properties` (profile variants, `spring.cloud.stream` bindings), and connection
+  strings recognized by shape wherever they appear.
 - **Edges from infrastructure.** Container Apps `env:`, App Service `appSettings`,
-  and `connectionStrings` in Bicep, plus a **Kubernetes/Helm** scanner
-  (Deployments, Services, Ingress, ConfigMaps, and `image:` links to code projects).
-- **Routes without a spec.** Endpoints read from source — Spring `@GetMapping`,
-  ASP.NET `[HttpGet]`/`MapGet`, FastAPI and Flask decorators, Express and Nest
-  routes, Gin/Echo/chi registrations — so services without an OpenAPI document
-  still publish their contracts, and route changes show up in `agentatlas check`.
+  and `connectionStrings` in Bicep; a Kubernetes/Helm scanner (Deployments, Services,
+  Ingress, ConfigMaps, `image:` links to code projects).
+- **Routes without a spec.** Endpoints read from Spring, ASP.NET, FastAPI/Flask,
+  Express/Nest, and Gin/Echo/chi source, so services without an OpenAPI document
+  still publish their contracts and route changes show up in `agentatlas check`.
 
-## 0.3 — sharper answers for agents
+## 0.3 — sharper answers for agents (shipped)
 
-- **Token-aware context packs** (shipped): `agentatlas pack <id>` and the `pack_context`
-  MCP tool produce the smallest map an agent needs for a task — direct dependencies and
-  callers always included, transitive impact and dependency and full flow detail added
+- **Token-aware context packs.** `agentatlas pack <id>` and the `pack_context` MCP
+  tool produce the smallest map an agent needs for a task — direct dependencies and
+  callers always included, transitive impact/dependencies and full flow detail added
   and trimmed by priority under a token budget.
-- **Ownership from CODEOWNERS** (shipped): the `codeowners` scanner attributes each
-  service so `impact` and `get_service` can say who to tell. A manual `owner` still wins.
-- **`agentatlas doctor`** (shipped): reports what the scanners could not resolve —
-  stores guessed from a dependency but never named, compute nodes with no edges at all,
-  external systems with no real description — with a paste-ready fix for each.
+- **Ownership from CODEOWNERS.** The `codeowners` scanner attributes each service so
+  `impact` and `get_service` can say who to tell. A manual `owner` still wins.
+- **`agentatlas doctor`.** Reports what scanners could not resolve — stores guessed
+  from a dependency but never named, compute nodes with no edges at all, external
+  systems with no real description — with a paste-ready fix for each.
+- **Contract info on edges.** `otel` records the callee's own endpoint on `calls`
+  edges from real traffic, and a topic's message type on `publishes`/`consumes`
+  edges when unambiguous.
+- **AsyncAPI**, mirroring `openapi`: a topic or queue's `messages` catalog (v2 and v3).
+- **Terraform**, mirroring `bicep`: the same resource families for `azurerm_*` and
+  `aws_*` types, with `environment`/`app_settings`/`env` blocks becoming edges the
+  same way.
 
-Still open:
-- **Contract info on edges**: which endpoints and message types each edge uses, for finer impact analysis
-- **Terraform** scanner, mirroring the Bicep work
-- **AsyncAPI** for message schemas on topic nodes
+## Later (shipped or scoped this round)
 
-## Later
-- **Multi-repo atlases**: merge the atlases of several repositories into one system view
-- **Trace sources beyond files**: Application Insights and Jaeger queries
-- **Draftsman integration**: validate new designs against the live topology
-- **Roslyn-based .NET analysis** (a companion `dotnet tool`) for `HttpClient` registrations, MassTransit/Wolverine consumers, and EF `DbContext`s. Deprioritized: configuration and route scanning reach most of the same edges without shipping a second toolchain.
+- **Multi-repo atlases** (shipped): `agentatlas merge` combines several repos'
+  committed atlases into one system view, reusing the same canonicalize/merge/cleanup
+  pass a single scan applies. A shared id across repos is one node — right for a
+  resource genuinely shared, wrong for a coincidence; `config.aliases` unifies two
+  different ids for the same real thing, but can't un-merge an identical id that
+  turns out to mean different things (fix that at the source, before committing).
+- **Trace sources beyond files** (shipped, as a CLI action, not a scanner):
+  `agentatlas fetch-traces --source jaeger` and `--source appinsights` write OTLP
+  JSON that `otel` then reads. This is deliberately **not** a scanner — scanners stay
+  read-only and network-free (see CONTRIBUTING.md) so `agentatlas scan` stays
+  deterministic; fetching is a separate, explicit step, same as committing a trace
+  file today. Best-effort: Jaeger conversion assumes OpenTelemetry semantic-convention
+  attributes; Application Insights' free-text dependency `type` is mapped to the same
+  vocabulary `otel` understands, falling back to a plain call for an unrecognized type.
+- **Draftsman integration** (shipped, rescoped): investigated Draftsman directly —
+  it's a Claude Code plugin that produces Markdown design docs with Mermaid diagrams
+  (`design.md`), not a machine schema, and its own docs already describe the read
+  direction (`surveyor` starts from `SYSTEM.md`/`atlas.yaml`). There's nothing
+  structured on Draftsman's side to validate against, so the other direction is
+  `agentatlas validate` / the `validate_design` MCP tool: best-effort Mermaid
+  flowchart parsing (works against Draftsman's real `examples/fnol-intake/design.md`,
+  and against AgentAtlas's own `render_diagram` output) plus a structured
+  `{nodes, edges}` fragment path for tools that do emit one. Checks broken
+  references, an id reused for something else, edges crossing team ownership, and
+  cycles a design would introduce.
+- **Roslyn-based .NET analysis** (a companion `dotnet tool`) for `HttpClient`
+  registrations, MassTransit/Wolverine consumers, and EF `DbContext`s: still
+  deprioritized. Configuration and route scanning now reach most of the same edges,
+  and 0.3's contract-info work (endpoints from traces) covers more of what a
+  Roslyn pass would add, without a second toolchain to build and ship.
+
+## Next
+- Contract-aware impact analysis: use `endpoints`/`messageTypes` on edges to scope
+  `impact_of_change` to only the dependents that actually touch the changed contract,
+  not everything downstream.
+- Terraform coverage for Google Cloud resource types.
+- `agentatlas validate` against a *committed* fragment in CI (not just ad hoc), so a
+  team's own service-boundary rules (no direct cross-team calls, no cycles) gate PRs.

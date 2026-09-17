@@ -8,6 +8,7 @@ import { AtlasGraph } from './graph.js';
 import { atlasPath, readAtlas, serializeAtlas } from './io.js';
 import { pack } from './pack.js';
 import { flowDiagram, topologyDiagram } from './render/mermaid.js';
+import { describeValidation, parseProposedDesign, validateDesign } from './validate.js';
 import { renderSystemMd } from './render/system-md.js';
 import { describeFlow, describeImpact, describeNode, describePath, hopList, summary } from './render/text.js';
 import { VERSION } from './version.js';
@@ -193,6 +194,19 @@ export function createServer(dir: string): McpServer {
       id = r.node.id;
     }
     return text(`\`\`\`mermaid\n${topologyDiagram(g, { focus: id, depth })}\n\`\`\``);
+  });
+
+  server.registerTool('validate_design', {
+    title: 'Validate design',
+    description: 'Check a proposed design against the live system: broken references, an id reused for something different, edges crossing team ownership, and cycles the design would add. Pass a Mermaid flowchart (a design doc\'s container/component view) or a {nodes, edges} fragment.',
+    inputSchema: { design: z.string().min(1).describe('A Mermaid flowchart, a Markdown doc containing one, or a YAML/JSON {nodes, edges} fragment') },
+    annotations: readOnly,
+  }, async ({ design }) => {
+    const g = source.get();
+    let parsed;
+    try { parsed = parseProposedDesign(design); } catch (err) { return fail(`Could not parse the design: ${err instanceof Error ? err.message : String(err)}`); }
+    if (!parsed.nodes.length) return fail('No nodes found: pass a Mermaid flowchart (```mermaid fenced or bare) or a {nodes, edges} fragment.');
+    return text(describeValidation(validateDesign(g, parsed)));
   });
 
   server.registerResource('system-map', 'atlas://system.md', {

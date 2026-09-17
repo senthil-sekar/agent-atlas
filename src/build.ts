@@ -4,6 +4,7 @@ import {
   type Atlas, type AtlasEdge, type AtlasNode, type Flow, type ScanResult, type Source,
   COMPUTE_KINDS, SOURCES, UNRESOLVED_EXTERNAL, normalizeId,
 } from './model.js';
+import { scanAsyncApi } from './scanners/asyncapi.js';
 import { scanBicep } from './scanners/bicep.js';
 import { scanCodeowners } from './scanners/codeowners.js';
 import { scanCompose } from './scanners/compose.js';
@@ -17,6 +18,7 @@ import { scanOpenApi } from './scanners/openapi.js';
 import { scanOtel } from './scanners/otel.js';
 import { scanPython } from './scanners/python.js';
 import { scanRoutes } from './scanners/routes.js';
+import { scanTerraform } from './scanners/terraform.js';
 import type { Scanner } from './scanners/types.js';
 import { DEFAULT_EXCLUDES, uniq, walk } from './util.js';
 
@@ -33,7 +35,9 @@ const SCANNERS: Array<[ScannerName, Scanner]> = [
   ['compose', scanCompose],
   ['openapi', scanOpenApi],
   ['bicep', scanBicep],
+  ['terraform', scanTerraform],
   ['k8s', scanK8s],
+  ['asyncapi', scanAsyncApi],
   ['otel', scanOtel],
 ];
 
@@ -100,6 +104,7 @@ export function assemble(config: AtlasConfig, raw: ScanResult, warnings: string[
     const kind = cur.kind === 'external' ? n.kind : n.kind === 'external' ? cur.kind
       : incomingWins ? n.kind : cur.kind;
     const endpoints = [...(cur.endpoints ?? []), ...(n.endpoints ?? [])];
+    const messages = [...(cur.messages ?? []), ...(n.messages ?? [])];
     const merged: AtlasNode = {
       id: n.id,
       kind,
@@ -110,6 +115,7 @@ export function assemble(config: AtlasConfig, raw: ScanResult, warnings: string[
       hosting: pick('hosting'),
       repoPath: pick('repoPath'),
       endpoints: [...new Map(endpoints.map((e) => [`${e.method} ${e.path}`, e])).values()],
+      messages: [...new Map(messages.map((m) => [m.name, m])).values()],
       tags: uniq([...(cur.tags ?? []), ...(n.tags ?? [])]),
       sources: uniq([...cur.sources, ...n.sources]),
     };
@@ -134,6 +140,8 @@ export function assemble(config: AtlasConfig, raw: ScanResult, warnings: string[
     edges.set(key, {
       ...cur,
       protocol: cur.protocol ?? e.protocol,
+      endpoints: cur.endpoints?.length || e.endpoints?.length ? uniq([...(cur.endpoints ?? []), ...(e.endpoints ?? [])]) : undefined,
+      messageTypes: cur.messageTypes?.length || e.messageTypes?.length ? uniq([...(cur.messageTypes ?? []), ...(e.messageTypes ?? [])]) : undefined,
       description: e.sources.includes('manual') ? e.description ?? cur.description : cur.description ?? e.description,
       observed: cur.observed !== undefined || e.observed !== undefined ? (cur.observed ?? 0) + (e.observed ?? 0) : undefined,
       sources: uniq([...cur.sources, ...e.sources]),
@@ -155,6 +163,14 @@ export function assemble(config: AtlasConfig, raw: ScanResult, warnings: string[
     if (!superseded) continue;
     nodes.delete(node.id);
     for (const [key, e] of edges) if (e.to === node.id) edges.delete(key);
+  }
+
+  // When a topic's contract is unambiguous (exactly one message type), attach it to the edges touching it.
+  for (const e of edges.values()) {
+    if (e.kind !== 'publishes' && e.kind !== 'consumes') continue;
+    if (e.messageTypes?.length) continue; // a scanner already knows precisely
+    const topic = nodes.get(e.to); // edges always point from the dependent to the topic/queue/stream
+    if (topic?.messages?.length === 1) e.messageTypes = [topic.messages[0]!.name];
   }
 
   // A generic "depends" edge is redundant when a more specific edge exists between the same pair.
@@ -190,7 +206,9 @@ export function assemble(config: AtlasConfig, raw: ScanResult, warnings: string[
     }
     return out;
   };
-  const EDGE_ORDER: Array<keyof AtlasEdge> = ['from', 'to', 'kind', 'protocol', 'description', 'observed', 'sources'];
+  const EDGE_ORDER: Array<keyof AtlasEdge> = [
+    'from', 'to', 'kind', 'protocol', 'endpoints', 'messageTypes', 'description', 'observed', 'sources',
+  ];
   const cleanEdge = (e: AtlasEdge): AtlasEdge =>
     Object.fromEntries(EDGE_ORDER.filter((k) => e[k] !== undefined).map((k) => [k, e[k]])) as unknown as AtlasEdge;
 

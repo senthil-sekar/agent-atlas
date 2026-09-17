@@ -12,11 +12,12 @@ export const SYSTEM_FILE = 'SYSTEM.md';
 
 export const SCANNER_NAMES = [
   'dotnet', 'java', 'go', 'python', 'node', 'env', 'routes', 'codeowners',
-  'compose', 'openapi', 'bicep', 'k8s', 'otel',
+  'compose', 'openapi', 'bicep', 'terraform', 'k8s', 'asyncapi', 'otel',
 ] as const;
 export type ScannerName = (typeof SCANNER_NAMES)[number];
 
 const endpoint = z.object({ method: z.string(), path: z.string(), summary: z.string().optional() });
+const message = z.object({ name: z.string(), summary: z.string().optional() });
 
 const manualNode = z.object({
   id: z.string().min(1),
@@ -28,6 +29,7 @@ const manualNode = z.object({
   hosting: z.string().optional(),
   repoPath: z.string().optional(),
   endpoints: z.array(endpoint).optional(),
+  messages: z.array(message).optional(),
   tags: z.array(z.string()).optional(),
 });
 
@@ -36,6 +38,8 @@ const manualEdge = z.object({
   to: z.string().min(1),
   kind: z.enum(EDGE_KINDS).default('calls'),
   protocol: z.string().optional(),
+  endpoints: z.array(z.string()).optional(),
+  messageTypes: z.array(z.string()).optional(),
   description: z.string().optional(),
 });
 
@@ -76,19 +80,31 @@ export type ManualNode = z.infer<typeof manualNode>;
 
 export class ConfigError extends Error {}
 
+/** Parse and validate config text, labeling errors with `label` (a file name or path). */
+export function parseConfigText(text: string, label = CONFIG_FILE): AtlasConfig {
+  const raw = parse(text) ?? {};
+  const result = configSchema.safeParse(raw);
+  if (!result.success) {
+    const issues = result.error.issues.map((i) => `  - ${i.path.join('.') || '(root)'}: ${i.message}`).join('\n');
+    throw new ConfigError(`Invalid ${label}:\n${issues}`);
+  }
+  return result.data;
+}
+
 export function loadConfig(dir: string): AtlasConfig {
   const path = join(dir, CONFIG_FILE);
   const text = readText(path);
   if (text === undefined) {
     return configSchema.parse({ system: { name: basename(resolve(dir)) } });
   }
-  const raw = parse(text) ?? {};
-  const result = configSchema.safeParse(raw);
-  if (!result.success) {
-    const issues = result.error.issues.map((i) => `  - ${i.path.join('.') || '(root)'}: ${i.message}`).join('\n');
-    throw new ConfigError(`Invalid ${CONFIG_FILE}:\n${issues}`);
-  }
-  return result.data;
+  return parseConfigText(text, CONFIG_FILE);
+}
+
+/** Load a config file at an arbitrary path, not tied to a project directory (used by `merge`). */
+export function loadConfigFile(path: string): AtlasConfig {
+  const text = readText(path);
+  if (text === undefined) throw new ConfigError(`Config file not found: ${path}`);
+  return parseConfigText(text, path);
 }
 
 export function initConfig(dir: string, force = false): string {

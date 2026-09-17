@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Contracts, multi-repo, and design validation
+- `AtlasEdge` gains `endpoints` (which route of the target a `calls` edge hits) and `messageTypes` (which message a `publishes`/`consumes` edge carries). `otel` sources both from real traffic; a topic's message type auto-attaches to its edges when unambiguous
+- New `asyncapi` scanner: a topic or queue's `messages` catalog (AsyncAPI v2 and v3), mirroring `openapi`'s endpoints
+- New `terraform` scanner: the same resource families as `bicep` for `azurerm_*` and `aws_*` types, with `environment`/`app_settings`/`env` blocks becoming edges the same way
+- New `agentatlas merge <dir...>` command: combines several repos' committed atlases into one system view, reusing the single-scan merge/cleanup rules
+- New `agentatlas fetch-traces` command (never a scanner — scanners stay network-free): pulls traces from a Jaeger Query API or an Application Insights workspace and writes OTLP JSON for `otel` to read
+- New `agentatlas validate <file>` command and `validate_design` MCP tool: checks a proposed design — a Mermaid flowchart or a `{nodes, edges}` fragment — against the live atlas for broken references, an id reused for something else, edges crossing team ownership, and cycles the design would introduce
+
 ### Sharper answers for agents
 - New `agentatlas pack <id>` command and `pack_context` MCP tool: the smallest map an agent needs before changing one node, trimmed to a token budget by dropping the least important section first (full flow detail, then transitive dependencies, then transitive impact), never the node's own direct dependencies and callers
 - New `codeowners` scanner: attributes each service's `owner` from `.github/CODEOWNERS` (or `CODEOWNERS`, `docs/CODEOWNERS`), so `impact` and `get_service` can say who to tell. A manual `owner` in `agentatlas.yaml` still wins

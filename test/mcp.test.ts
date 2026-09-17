@@ -23,7 +23,7 @@ describe('MCP server', () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([
       'find_callers', 'get_dependencies', 'get_service', 'impact_of_change', 'list_flows',
-      'pack_context', 'render_diagram', 'search_atlas', 'system_overview', 'trace_flow',
+      'pack_context', 'render_diagram', 'search_atlas', 'system_overview', 'trace_flow', 'validate_design',
     ]);
     expect(tools.every((t) => t.annotations?.readOnlyHint)).toBe(true);
     const { resources } = await client.listResources();
@@ -58,6 +58,15 @@ describe('MCP server', () => {
     const small = await call('system_overview', { level: 'full', maxTokens: 100 });
     expect(small.text.length).toBeLessThan(full.text.length);
     expect(small.text).toContain('Truncated');
+  });
+
+  it('validates a proposed design against the live atlas', async () => {
+    const design = await call('validate_design', {
+      design: 'flowchart LR\n  quote_api[quote-api] --> new_svc[new-service]\n  new_svc --> redis[redis]\n',
+    });
+    expect(design.text).toContain('redis');
+    const empty = await call('validate_design', { design: 'not a design at all' });
+    expect(empty.isError).toBe(true);
   });
 
   it('serves SYSTEM.md as a resource', async () => {

@@ -19,8 +19,9 @@ export function nodeLine(n: AtlasNode): string {
 
 function edgeText(e: AtlasEdge, dir: 'out' | 'in'): string {
   const extra = [e.protocol, e.observed ? `seen ${e.observed}x` : ''].filter(Boolean).join(', ');
+  const contract = e.endpoints?.length ? ` [${e.endpoints.join(', ')}]` : e.messageTypes?.length ? ` [${e.messageTypes.join(', ')}]` : '';
   const other = dir === 'out' ? e.to : e.from;
-  return `${verb[e.kind][dir === 'out' ? 0 : 1]} ${other}${extra ? ` (${extra})` : ''}`;
+  return `${verb[e.kind][dir === 'out' ? 0 : 1]} ${other}${extra ? ` (${extra})` : ''}${contract}`;
 }
 
 export function hopList(hops: Hop[]): string {
@@ -44,6 +45,9 @@ export function describeNode(graph: AtlasGraph, n: AtlasNode): string {
   lines.push('', 'Used by:', ...(inc.length ? inc.map((e) => `- ${edgeText(e, 'in')}`) : ['- (nothing)']));
   if (n.endpoints?.length) {
     lines.push('', 'Endpoints:', ...n.endpoints.map((e) => `- ${e.method} ${e.path}${e.summary ? ` — ${e.summary}` : ''}`));
+  }
+  if (n.messages?.length) {
+    lines.push('', 'Messages:', ...n.messages.map((m) => `- ${m.name}${m.summary ? ` — ${m.summary}` : ''}`));
   }
   const flows = graph.flowsFor(n.id);
   if (flows.length) lines.push('', 'Flows:', ...flows.map((f) => `- ${f.id}: ${f.name}`));

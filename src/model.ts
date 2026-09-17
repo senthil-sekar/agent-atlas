@@ -21,7 +21,7 @@ export type EdgeKind = (typeof EDGE_KINDS)[number];
 
 export const SOURCES = [
   'manual', 'dotnet', 'java', 'go', 'python', 'node', 'env', 'routes', 'codeowners',
-  'compose', 'openapi', 'bicep', 'k8s', 'otel',
+  'compose', 'openapi', 'bicep', 'terraform', 'k8s', 'asyncapi', 'otel',
 ] as const;
 export type Source = (typeof SOURCES)[number];
 
@@ -38,6 +38,11 @@ export interface Endpoint {
   summary?: string;
 }
 
+export interface Message {
+  name: string;
+  summary?: string;
+}
+
 export interface AtlasNode {
   id: string;
   kind: NodeKind;
@@ -48,6 +53,8 @@ export interface AtlasNode {
   hosting?: string;
   repoPath?: string;
   endpoints?: Endpoint[];
+  /** Message/event types a topic, queue, or stream carries (from AsyncAPI). */
+  messages?: Message[];
   tags?: string[];
   sources: Source[];
 }
@@ -57,6 +64,10 @@ export interface AtlasEdge {
   to: string;
   kind: EdgeKind;
   protocol?: string;
+  /** For `calls` edges: endpoints of `to` this edge is known to hit. */
+  endpoints?: string[];
+  /** For `publishes`/`consumes` edges: message or event type names known for this edge. */
+  messageTypes?: string[];
   description?: string;
   /** Number of times this interaction appeared in traces. */
   observed?: number;

@@ -85,7 +85,7 @@ Public API edge. Handles subscription keys and throttling, then forwards to the 
 
 **Depends on**
 
-- calls `quote-api` (http) — seen 1x in traces
+- calls `quote-api` (http) — seen 1x in traces — POST /v1/quotes
 
 **Used by**
 
@@ -113,7 +113,7 @@ Creates and prices quotes, and binds accepted quotes.
 
 - publishes `quote-bound` — seen 1x in traces
 - stores `quote-db` — seen 2x in traces
-- calls `rating-engine` (http) — seen 1x in traces
+- calls `rating-engine` (http) — seen 1x in traces — POST /v1/premiums
 - stores `redis`
 
 **Used by**

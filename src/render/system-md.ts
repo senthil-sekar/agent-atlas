@@ -39,12 +39,18 @@ export function renderSystemMd(graph: AtlasGraph): string {
     out.push('');
   }
   if (data.length || messaging.length) {
-    out.push('## Data and messaging', '', '| Resource | Kind | Tech | Writers / publishers | Readers / consumers |', '|---|---|---|---|---|');
+    const hasMessages = messaging.some((n) => n.messages?.length);
+    const header = hasMessages
+      ? ['| Resource | Kind | Tech | Writers / publishers | Readers / consumers | Messages |', '|---|---|---|---|---|---|']
+      : ['| Resource | Kind | Tech | Writers / publishers | Readers / consumers |', '|---|---|---|---|---|'];
+    out.push('## Data and messaging', '', ...header);
     for (const n of [...data, ...messaging]) {
       const inc = graph.incoming(n.id);
       const writers = inc.filter((e) => e.kind !== 'consumes').map((e) => e.from);
       const readers = inc.filter((e) => e.kind === 'consumes').map((e) => e.from);
-      out.push(`| \`${n.id}\` | ${n.kind} | ${cell(n.tech?.join(', '))} | ${list(writers)} | ${n.kind === 'topic' || n.kind === 'queue' || n.kind === 'stream' ? list(readers) : '—'} |`);
+      const isMessaging = n.kind === 'topic' || n.kind === 'queue' || n.kind === 'stream';
+      const row = `| \`${n.id}\` | ${n.kind} | ${cell(n.tech?.join(', '))} | ${list(writers)} | ${isMessaging ? list(readers) : '—'} |`;
+      out.push(hasMessages ? `${row} ${cell(n.messages?.map((m) => m.name).join(', '))} |` : row);
     }
     out.push('');
   }
@@ -68,7 +74,10 @@ export function renderSystemMd(graph: AtlasGraph): string {
     const deps = graph.outgoing(n.id);
     if (deps.length) {
       out.push('**Depends on**', '');
-      deps.forEach((e) => out.push(`- ${e.kind} \`${e.to}\`${e.protocol ? ` (${e.protocol})` : ''}${e.observed ? ` — seen ${e.observed}x in traces` : ''}`));
+      deps.forEach((e) => {
+        const contract = e.endpoints?.length ? ` — ${e.endpoints.join(', ')}` : e.messageTypes?.length ? ` — ${e.messageTypes.join(', ')}` : '';
+        out.push(`- ${e.kind} \`${e.to}\`${e.protocol ? ` (${e.protocol})` : ''}${e.observed ? ` — seen ${e.observed}x in traces` : ''}${contract}`);
+      });
       out.push('');
     }
     const users = graph.incoming(n.id);
