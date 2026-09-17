@@ -1,7 +1,7 @@
 # Roadmap
 
 ## 0.1 (this release)
-- Scanners: .NET, Node.js, Docker Compose, OpenAPI, Bicep, OpenTelemetry (OTLP JSON)
+- Scanners: .NET, Java, Go, Python, Node.js (incl. React/Vue/Angular/Svelte SPAs), Docker Compose, OpenAPI, Bicep, OpenTelemetry (OTLP JSON)
 - Outputs: `SYSTEM.md`, `.agentatlas/atlas.yaml`, Mermaid diagrams
 - MCP server with 9 read-only tools and 2 resources
 - Drift check for CI

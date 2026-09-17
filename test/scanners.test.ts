@@ -98,6 +98,106 @@ describe('otel', () => {
   });
 });
 
+describe('java', () => {
+  it('reads Maven and Gradle projects, skipping aggregator poms and libraries', () => {
+    const root = project({
+      'pom.xml': '<project><packaging>pom</packaging><artifactId>parent</artifactId></project>',
+      'services/quote-api/pom.xml': `
+<project>
+  <parent><groupId>com.contoso</groupId><artifactId>parent</artifactId><version>1.0</version></parent>
+  <artifactId>quote-api</artifactId>
+  <dependencies>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
+    <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId></dependency>
+    <dependency><groupId>org.springframework.kafka</groupId><artifactId>spring-kafka</artifactId></dependency>
+  </dependencies>
+  <dependencyManagement>
+    <dependencies>
+      <dependency><groupId>com.mysql</groupId><artifactId>mysql-connector-j</artifactId><version>8.0</version></dependency>
+    </dependencies>
+  </dependencyManagement>
+</project>`,
+      'services/shared/pom.xml': '<project><artifactId>shared-lib</artifactId><dependencies><dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId></dependency></dependencies></project>',
+      'services/notify/build.gradle.kts': `
+dependencies {
+  implementation("io.micronaut:micronaut-http-server-netty")
+  implementation("redis.clients:jedis:5.0.0")
+}`,
+      'services/notify/settings.gradle.kts': "rootProject.name = \"notify-service\"",
+    });
+    const { atlas } = buildAtlas(root);
+    const ids = atlas.nodes.map((n) => `${n.id}:${n.kind}`);
+    expect(ids).toContain('quote-api:service');
+    expect(ids).toContain('notify-service:service');
+    expect(ids.some((i) => i.startsWith('parent') || i.startsWith('shared-lib'))).toBe(false);
+    const quoteApi = atlas.nodes.find((n) => n.id === 'quote-api')!;
+    expect(quoteApi.tech).toEqual(expect.arrayContaining(['Java', 'Spring Boot', 'PostgreSQL', 'Kafka']));
+    expect(quoteApi.tech).not.toContain('MySQL'); // dependencyManagement isn't a real dependency
+    expect(atlas.nodes.find((n) => n.id === 'notify-service')!.tech).toEqual(expect.arrayContaining(['Java', 'Micronaut', 'Redis']));
+  });
+});
+
+describe('go', () => {
+  it('finds main packages and infers infra from go.mod requires', () => {
+    const root = project({
+      'go.mod': `module github.com/contoso/rating-engine
+
+require (
+	github.com/gin-gonic/gin v1.9.1
+	github.com/redis/go-redis/v9 v9.3.0
+)
+`,
+      'cmd/api/main.go': 'package main\n\nfunc main() {}\n',
+      'internal/pricing/pricing.go': 'package pricing\n',
+    });
+    const { atlas } = buildAtlas(root);
+    const ids = atlas.nodes.map((n) => `${n.id}:${n.kind}`);
+    expect(ids).toContain('api:service');
+    const api = atlas.nodes.find((n) => n.id === 'api')!;
+    expect(api.tech).toEqual(expect.arrayContaining(['Go', 'Gin', 'Redis']));
+    expect(api.repoPath).toBe('cmd/api');
+  });
+});
+
+describe('python', () => {
+  it('reads pyproject.toml and requirements.txt, skipping non-web projects', () => {
+    const root = project({
+      'services/claims/pyproject.toml': `
+[project]
+name = "claims-api"
+dependencies = ["fastapi>=0.110", "psycopg2-binary", "redis"]
+`,
+      'services/etl/requirements.txt': `
+# batch job, no web framework
+pandas==2.2.0
+boto3==1.34.0
+`,
+      'services/notifier/requirements.txt': `
+Flask==3.0.0
+pika==1.3.2
+`,
+    });
+    const { atlas } = buildAtlas(root);
+    const ids = atlas.nodes.map((n) => `${n.id}:${n.kind}`);
+    expect(ids).toContain('claims-api:service');
+    expect(ids).toContain('notifier:service');
+    expect(ids.some((i) => i.startsWith('etl'))).toBe(false); // no recognized web framework
+    const claims = atlas.nodes.find((n) => n.id === 'claims-api')!;
+    expect(claims.tech).toEqual(expect.arrayContaining(['Python', 'FastAPI', 'PostgreSQL', 'Redis']));
+  });
+});
+
+describe('react SPA detection', () => {
+  it('classifies a plain React app as frontend without a meta-framework', () => {
+    const root = project({
+      'apps/portal/package.json': JSON.stringify({ name: 'portal', dependencies: { react: '18', 'react-dom': '18' } }),
+    });
+    const { atlas } = buildAtlas(root);
+    expect(atlas.nodes.map((n) => `${n.id}:${n.kind}`)).toContain('portal:frontend');
+    expect(atlas.nodes.find((n) => n.id === 'portal')!.tech).toContain('React');
+  });
+});
+
 describe('config', () => {
   it('reports invalid config clearly', () => {
     const root = project({ 'agentatlas.yaml': 'version: 1\nsystem: {}\nnodes:\n  - id: x\n    kind: banana\n' });

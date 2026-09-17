@@ -14,6 +14,10 @@ const FRAMEWORKS: Array<[string, string, NodeKind]> = [
   ['nuxt', 'Nuxt', 'frontend'],
   ['@remix-run/node', 'Remix', 'frontend'],
   ['@azure/functions', 'Azure Functions', 'function'],
+  ['@angular/core', 'Angular', 'frontend'],
+  ['vue', 'Vue', 'frontend'],
+  ['svelte', 'Svelte', 'frontend'],
+  ['react-dom', 'React', 'frontend'],
 ];
 
 const INFRA: Array<[string, string, NodeKind | 'messaging']> = [

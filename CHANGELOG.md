@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+- Scanners: Java (Maven/Gradle, Spring Boot/Micronaut/Quarkus), Go (`go.mod` + `package main` directories, Gin/Echo/Fiber/chi/gorilla/gRPC), Python (`pyproject.toml`/`requirements.txt`, Django/Flask/FastAPI/Tornado/aiohttp/Starlette)
+- `node` scanner now recognizes plain React, Vue, Angular, and Svelte SPAs as frontend nodes, not just meta-frameworks
+- Default excludes cover Java/Go/Python build and dependency directories (`target`, `vendor`, `.venv`, `venv`, `__pycache__`, `build`, `.gradle`, `site-packages`)
+
 ## 0.1.0 — 2026-09-16
 
 First release.
