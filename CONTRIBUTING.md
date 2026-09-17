@@ -47,6 +47,8 @@ unit-testable with a dependency-injected `fetchImpl`, with no real network acces
 
 The example's generated files are committed and checked by the tests. After changing anything in `examples/quote-to-bind`, run `npm run build && npm run example` and commit the regenerated files.
 
+If the topology diagram itself changed, also regenerate `docs/images/quote-to-bind-topology.svg` — the static image the README embeds so it renders in contexts that don't support live Mermaid (the GitHub mobile app, for one). Render the exact `flowchart` block from the regenerated `SYSTEM.md` with any Mermaid renderer (mermaid.js in a headless browser, the Mermaid Live Editor, `mmdc`) and overwrite that file; this project takes no dependency on a renderer, so there's no npm script for it.
+
 ## Output stability
 
 `atlas.yaml` is committed by users, so keep its ordering deterministic and avoid gratuitous format changes. Diffs should reflect real topology changes.

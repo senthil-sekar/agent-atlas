@@ -216,37 +216,9 @@ Both are best-effort: Jaeger conversion assumes OpenTelemetry semantic-conventio
 
 ## Example
 
-[`examples/quote-to-bind`](examples/quote-to-bind) is a small auto insurance system: a YARP gateway behind API Management, a quote API, a rating engine, a policy worker fed by a Service Bus topic, SQL, Redis, and a legacy SOAP policy system. Nobody drew the diagram or wrote the tables below — `agentatlas scan` produced this straight from the `.csproj` files, `appsettings.json`, `docker-compose.yml`, an OpenAPI spec, and a trace file, then merged everything by id. It's the real, generated [`SYSTEM.md`](examples/quote-to-bind/SYSTEM.md):
+[`examples/quote-to-bind`](examples/quote-to-bind) is a small auto insurance system: a YARP gateway behind API Management, a quote API, a rating engine, a policy worker fed by a Service Bus topic, SQL, Redis, and a legacy SOAP policy system. Nobody drew the diagram or wrote the tables below — `agentatlas scan` produced this straight from the `.csproj` files, `appsettings.json`, `docker-compose.yml`, an OpenAPI spec, and a trace file, then merged everything by id. It's the real, generated [`SYSTEM.md`](examples/quote-to-bind/SYSTEM.md) (shown here as a static image so it renders the same everywhere, including the GitHub mobile app, which doesn't render live Mermaid; open `SYSTEM.md` on the GitHub web UI, or run `agentatlas diagram --dir examples/quote-to-bind`, for the live version):
 
-```mermaid
-flowchart LR
-  subgraph services["Services"]
-    n_apim{{"apim<br/><small>Azure API Management</small>"}}
-    n_gateway{{"gateway<br/><small>ASP.NET Core</small>"}}
-    n_policy_worker["policy-worker<br/><small>Azure Container Apps</small>"]
-    n_quote_api["quote-api<br/><small>Azure Container Apps</small>"]
-    n_rating_engine["rating-engine<br/><small>Azure Container Apps</small>"]
-  end
-  subgraph messaging["Messaging"]
-    n_quote_bound[["quote-bound<br/><small>Azure Service Bus</small>"]]
-  end
-  subgraph data["Data"]
-    n_policy_db[("policy-db<br/><small>Azure SQL Database</small>")]
-    n_quote_db[("quote-db<br/><small>Azure SQL Database</small>")]
-    n_redis[("redis<br/><small>Azure Cache for Redis</small>")]
-  end
-  n_policy_admin>"policy-admin"]
-  n_apim -->|calls https| n_gateway
-  n_gateway -->|calls http| n_quote_api
-  n_policy_worker -->|calls https| n_policy_admin
-  n_policy_worker -->|stores| n_policy_db
-  n_policy_worker -. consumes .-> n_quote_bound
-  n_quote_api -. publishes .-> n_quote_bound
-  n_quote_api -->|stores| n_quote_db
-  n_quote_api -->|calls http| n_rating_engine
-  n_quote_api -->|stores| n_redis
-  n_rating_engine -->|stores| n_redis
-```
+<img src="docs/images/quote-to-bind-topology.svg" alt="Topology: apim calls gateway calls quote-api; quote-api stores quote-db and redis, calls rating-engine which stores redis, and publishes to the quote-bound topic; policy-worker consumes quote-bound, stores policy-db, and calls the external policy-admin system" width="760">
 
 | Service | Kind | Tech | Depends on | Used by |
 |---|---|---|---|---|
