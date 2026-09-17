@@ -216,7 +216,7 @@ Both are best-effort: Jaeger conversion assumes OpenTelemetry semantic-conventio
 
 ## Example
 
-[`examples/quote-to-bind`](examples/quote-to-bind) is a small auto insurance system: a YARP gateway behind API Management, a quote API, a rating engine, a policy worker fed by a Service Bus topic, SQL, Redis, and a legacy SOAP policy system. Nobody drew the diagram or wrote the tables below — `agentatlas scan` produced this straight from the `.csproj` files, `appsettings.json`, `docker-compose.yml`, an OpenAPI spec, and a trace file, then merged everything by id. It's the real, generated [`SYSTEM.md`](examples/quote-to-bind/SYSTEM.md) (shown here as a static image so it renders the same everywhere, including the GitHub mobile app, which doesn't render live Mermaid; open `SYSTEM.md` on the GitHub web UI, or run `agentatlas diagram --dir examples/quote-to-bind`, for the live version):
+[`examples/quote-to-bind`](examples/quote-to-bind) is a small auto insurance system: a YARP gateway behind API Management, a quote API, a rating engine, a policy worker fed by a Service Bus topic, SQL, Redis, and a legacy SOAP policy system. Nobody drew the diagram or wrote the tables below — `agentatlas scan` produced this straight from the `.csproj` files, `appsettings.json`, `docker-compose.yml`, an OpenAPI spec, and a trace file, then merged everything by id. It's the real, generated [`SYSTEM.md`](examples/quote-to-bind/SYSTEM.md):
 
 <img src="docs/images/quote-to-bind-topology.svg" alt="Topology: apim calls gateway calls quote-api; quote-api stores quote-db and redis, calls rating-engine which stores redis, and publishes to the quote-bound topic; policy-worker consumes quote-bound, stores policy-db, and calls the external policy-admin system" width="760">
 
