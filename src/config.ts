@@ -11,7 +11,8 @@ export const ATLAS_FILE = 'atlas.yaml';
 export const SYSTEM_FILE = 'SYSTEM.md';
 
 export const SCANNER_NAMES = [
-  'dotnet', 'java', 'go', 'python', 'node', 'env', 'routes', 'compose', 'openapi', 'bicep', 'k8s', 'otel',
+  'dotnet', 'java', 'go', 'python', 'node', 'env', 'routes', 'codeowners',
+  'compose', 'openapi', 'bicep', 'k8s', 'otel',
 ] as const;
 export type ScannerName = (typeof SCANNER_NAMES)[number];
 

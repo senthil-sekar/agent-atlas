@@ -23,7 +23,7 @@ describe('MCP server', () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([
       'find_callers', 'get_dependencies', 'get_service', 'impact_of_change', 'list_flows',
-      'render_diagram', 'search_atlas', 'system_overview', 'trace_flow',
+      'pack_context', 'render_diagram', 'search_atlas', 'system_overview', 'trace_flow',
     ]);
     expect(tools.every((t) => t.annotations?.readOnlyHint)).toBe(true);
     const { resources } = await client.listResources();
@@ -42,6 +42,15 @@ describe('MCP server', () => {
     expect(flow.text).toContain('sequenceDiagram');
     expect((await call('search_atlas', { query: 'redis' })).text).toContain('redis [cache]');
     expect((await call('trace_flow', {})).isError).toBe(true);
+  });
+
+  it('packs context for one node, trimmed to a token budget', async () => {
+    const full = await call('pack_context', { id: 'quote-api' });
+    expect(full.text).toContain('## quote-api');
+    expect(full.text).toContain('Flow detail:');
+    const small = await call('pack_context', { id: 'quote-api', maxTokens: 40 });
+    expect(small.text.length).toBeLessThan(full.text.length);
+    expect(small.text).toContain('## quote-api'); // the essential section always survives
   });
 
   it('truncates the overview to a token budget', async () => {

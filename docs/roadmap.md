@@ -35,9 +35,18 @@ services but no dependencies between them.
   still publish their contracts, and route changes show up in `agentatlas check`.
 
 ## 0.3 — sharper answers for agents
-- **Token-aware context packs**: `agentatlas pack <id>` produces the smallest map an agent needs for a task
-- **Ownership** from CODEOWNERS, so `impact` can answer who needs to be told
-- **`agentatlas doctor`**: report what the scanners could not resolve (unnamed inferred stores, services with no edges, undescribed externals) and emit ready-to-paste config
+
+- **Token-aware context packs** (shipped): `agentatlas pack <id>` and the `pack_context`
+  MCP tool produce the smallest map an agent needs for a task — direct dependencies and
+  callers always included, transitive impact and dependency and full flow detail added
+  and trimmed by priority under a token budget.
+- **Ownership from CODEOWNERS** (shipped): the `codeowners` scanner attributes each
+  service so `impact` and `get_service` can say who to tell. A manual `owner` still wins.
+- **`agentatlas doctor`** (shipped): reports what the scanners could not resolve —
+  stores guessed from a dependency but never named, compute nodes with no edges at all,
+  external systems with no real description — with a paste-ready fix for each.
+
+Still open:
 - **Contract info on edges**: which endpoints and message types each edge uses, for finer impact analysis
 - **Terraform** scanner, mirroring the Bicep work
 - **AsyncAPI** for message schemas on topic nodes

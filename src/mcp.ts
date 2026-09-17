@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { buildAtlas } from './build.js';
 import { AtlasGraph } from './graph.js';
 import { atlasPath, readAtlas, serializeAtlas } from './io.js';
+import { pack } from './pack.js';
 import { flowDiagram, topologyDiagram } from './render/mermaid.js';
 import { renderSystemMd } from './render/system-md.js';
 import { describeFlow, describeImpact, describeNode, describePath, hopList, summary } from './render/text.js';
@@ -44,8 +45,9 @@ export function createServer(dir: string): McpServer {
     { name: 'agentatlas', version: VERSION },
     {
       instructions:
-        'AgentAtlas describes how the services in this system connect. Call system_overview first, ' +
-        'then get_service before changing a service, and impact_of_change before changing a contract, schema, or message.',
+        'AgentAtlas describes how the services in this system connect. Call system_overview first. ' +
+        'Once you know which node you are changing, prefer pack_context over get_service — it adds transitive ' +
+        'impact and flow detail, trimmed to a token budget. Call impact_of_change before changing a contract, schema, or message.',
     },
   );
 
@@ -71,6 +73,21 @@ export function createServer(dir: string): McpServer {
   }, async ({ level, maxTokens }) => {
     const g = source.get();
     return text(summary(g, level, maxTokens) + source.note);
+  });
+
+  server.registerTool('pack_context', {
+    title: 'Pack context',
+    description: 'The smallest map you need before changing one node: its direct dependencies and callers, transitive impact and dependencies, and flows through it — trimmed to a token budget. Cheaper than system_overview when you already know which node you are touching.',
+    inputSchema: {
+      id: z.string().describe('Node id or name, e.g. "quote-api"'),
+      depth: z.number().int().min(1).max(6).default(2).describe('How many hops of transitive dependencies and impact to include'),
+      maxTokens: z.number().int().positive().optional().describe('Truncate the answer to roughly this many tokens, dropping the least important sections first'),
+    },
+    annotations: readOnly,
+  }, async ({ id, depth, maxTokens }) => {
+    const g = source.get();
+    const r = lookup(g, id);
+    return r.node ? text(pack(g, r.node.id, { depth, maxTokens }) + source.note) : fail(r.error!);
   });
 
   server.registerTool('get_service', {

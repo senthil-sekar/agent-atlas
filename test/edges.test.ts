@@ -216,6 +216,44 @@ spec:
   });
 });
 
+describe('CODEOWNERS', () => {
+  const pom = (artifact: string) => `
+<project><artifactId>${artifact}</artifactId><dependencies>
+  <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
+</dependencies></project>`;
+
+  it('attributes a service to the last matching pattern', () => {
+    const root = project({
+      '.github/CODEOWNERS': [
+        '* @platform-team',
+        '/services/quote/ @quoting-team',
+        '/services/quote/legacy/ @legacy-team', // more specific, but quote-api's repoPath won't match this
+      ].join('\n'),
+      'services/quote/pom.xml': pom('quote-api'),
+      'services/notify/pom.xml': pom('notify-api'),
+    });
+    const { atlas } = buildAtlas(root);
+    expect(atlas.nodes.find((n) => n.id === 'quote-api')!.owner).toBe('@quoting-team');
+    expect(atlas.nodes.find((n) => n.id === 'notify-api')!.owner).toBe('@platform-team');
+  });
+
+  it('lets a manual override in agentatlas.yaml win over CODEOWNERS', () => {
+    const root = project({
+      '.github/CODEOWNERS': '/services/quote/ @quoting-team\n',
+      'services/quote/pom.xml': pom('quote-api'),
+      'agentatlas.yaml': 'version: 1\nsystem: { name: t }\nnodes:\n  - { id: quote-api, owner: "Platform Guild" }\n',
+    });
+    const { atlas } = buildAtlas(root);
+    expect(atlas.nodes.find((n) => n.id === 'quote-api')!.owner).toBe('Platform Guild');
+  });
+
+  it('does nothing when no CODEOWNERS file exists', () => {
+    const root = project({ 'services/quote/pom.xml': pom('quote-api') });
+    const { atlas } = buildAtlas(root);
+    expect(atlas.nodes.find((n) => n.id === 'quote-api')!.owner).toBeUndefined();
+  });
+});
+
 describe('routes read from source', () => {
   it('finds endpoints without an OpenAPI document', () => {
     const root = project({

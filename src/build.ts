@@ -2,9 +2,10 @@ import { resolve } from 'node:path';
 import { type AtlasConfig, type ScannerName, loadConfig } from './config.js';
 import {
   type Atlas, type AtlasEdge, type AtlasNode, type Flow, type ScanResult, type Source,
-  COMPUTE_KINDS, SOURCES, normalizeId,
+  COMPUTE_KINDS, SOURCES, UNRESOLVED_EXTERNAL, normalizeId,
 } from './model.js';
 import { scanBicep } from './scanners/bicep.js';
+import { scanCodeowners } from './scanners/codeowners.js';
 import { scanCompose } from './scanners/compose.js';
 import { scanDotnet } from './scanners/dotnet.js';
 import { scanEnv } from './scanners/env.js';
@@ -28,6 +29,7 @@ const SCANNERS: Array<[ScannerName, Scanner]> = [
   ['node', scanNode],
   ['env', scanEnv],
   ['routes', scanRoutes],
+  ['codeowners', scanCodeowners],
   ['compose', scanCompose],
   ['openapi', scanOpenApi],
   ['bicep', scanBicep],
@@ -124,7 +126,7 @@ export function assemble(config: AtlasConfig, raw: ScanResult, warnings: string[
     const e = { ...incoming, from: canon(incoming.from), to: canon(incoming.to) };
     if (e.from === e.to || ignored.has(e.from) || ignored.has(e.to)) return;
     for (const end of [e.from, e.to]) {
-      if (!nodes.has(end)) nodes.set(end, { id: end, kind: 'external', description: 'Referenced but not found by any scanner.', sources: [...e.sources] });
+      if (!nodes.has(end)) nodes.set(end, { id: end, kind: 'external', description: UNRESOLVED_EXTERNAL, sources: [...e.sources] });
     }
     const key = `${e.from}|${e.to}|${e.kind}`;
     const cur = edges.get(key);

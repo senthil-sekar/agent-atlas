@@ -42,6 +42,7 @@ Commit `agentatlas.yaml`, `.agentatlas/atlas.yaml`, and `SYSTEM.md`. Run `agenta
 | `node` | `package.json` | Express, Fastify, NestJS, Koa, Hono, Next.js, Nuxt, Remix, Angular, Vue, Svelte, plain React, and Azure Functions apps, with their data and messaging clients |
 | `env` | `.env`, `.env.example`, `.env.*` | Connection strings, service URLs, and topic and queue names, attached to the service whose folder holds the file. Works for every language. Values stay local: only ids, tech, and external origins reach the atlas. |
 | `routes` | `*.java`, `*.kt`, `*.cs`, `*.py`, `*.js/ts`, `*.go` | Endpoints declared in code for services with no OpenAPI document: Spring `@GetMapping`, ASP.NET `[HttpGet]` and `MapGet`, FastAPI and Flask decorators, Express and Nest routes, Gin/Echo/chi registrations |
+| `codeowners` | `.github/CODEOWNERS`, `CODEOWNERS`, `docs/CODEOWNERS` | Attributes each service's `owner` from the pattern that last matches its code folder, so `impact` can say who to tell. A manual `owner` in `agentatlas.yaml` always wins. |
 | `compose` | `docker-compose*.yml`, `compose*.yaml` | Services and infrastructure containers, `depends_on`, and hostnames in environment variables. Build contexts link compose services to code projects automatically. |
 | `openapi` | `openapi*.yaml/json`, `swagger*.json` | Endpoints, attached to the code project that contains the spec |
 | `bicep` | `*.bicep` | Container Apps, App Service, Functions, API Management, SQL, Cosmos DB, Redis, Service Bus topics and queues, Event Hubs, Storage, AI Search. Container `env:`, `appSettings`, and `connectionStrings` become edges, with `${resource.properties…}` references resolved to the resource they point at. |
@@ -96,6 +97,7 @@ All tools are read-only.
 | Tool | Answers |
 |---|---|
 | `system_overview` | What is this system? (`brief`, `standard`, or `full`, with an optional token budget) |
+| `pack_context` | The smallest map you need before changing one node: direct and transitive dependencies, impact, and flow detail, trimmed to a token budget |
 | `get_service` | Everything about one node: tech, hosting, code path, dependencies, users, endpoints, flows |
 | `get_dependencies` | What does X depend on, N hops deep? |
 | `find_callers` | What depends on X? |
@@ -115,8 +117,10 @@ The server reads the committed `.agentatlas/atlas.yaml` and reloads it when it c
 agentatlas init                     Create agentatlas.yaml
 agentatlas scan [--dry-run]         Write .agentatlas/atlas.yaml and SYSTEM.md
 agentatlas check                    Exit 1 if the committed atlas no longer matches the code
+agentatlas doctor                   Report what scanners could not resolve, with paste-ready fixes
 agentatlas summary [--level L]      brief | standard | full   [--max-tokens N]
 agentatlas show <id>                One node in detail
+agentatlas pack <id> [--depth N] [--max-tokens N]  The smallest map an agent needs before changing <id>
 agentatlas deps <id> [--depth N]    What <id> depends on
 agentatlas callers <id> [--depth N] What depends on <id>
 agentatlas impact <id> [--depth N]  Blast radius
@@ -141,7 +145,7 @@ system:
 
 scan:
   exclude: ["legacy/**"]                  # added to the defaults (bin, obj, node_modules, …)
-  scanners: [dotnet, java, go, python, node, env, routes, compose, openapi, bicep, k8s, otel]
+  scanners: [dotnet, java, go, python, node, env, routes, codeowners, compose, openapi, bicep, k8s, otel]
   traces: ["traces/**/*.json"]            # OTLP JSON exports
   stripPrefixes: [contoso]                # Contoso.Quote.Api → quote-api
 

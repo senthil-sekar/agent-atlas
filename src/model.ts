@@ -20,13 +20,17 @@ export const EDGE_KINDS = ['calls', 'publishes', 'consumes', 'stores', 'depends'
 export type EdgeKind = (typeof EDGE_KINDS)[number];
 
 export const SOURCES = [
-  'manual', 'dotnet', 'java', 'go', 'python', 'node', 'env', 'routes', 'compose', 'openapi', 'bicep', 'k8s', 'otel',
+  'manual', 'dotnet', 'java', 'go', 'python', 'node', 'env', 'routes', 'codeowners',
+  'compose', 'openapi', 'bicep', 'k8s', 'otel',
 ] as const;
 export type Source = (typeof SOURCES)[number];
 
 export const STORE_KINDS: ReadonlySet<NodeKind> = new Set(['database', 'cache', 'storage', 'search']);
 export const MESSAGING_KINDS: ReadonlySet<NodeKind> = new Set(['queue', 'topic', 'stream']);
 export const COMPUTE_KINDS: ReadonlySet<NodeKind> = new Set(['service', 'function', 'gateway', 'frontend']);
+
+/** Placeholder description for a node an edge points at that no scanner or config ever named. */
+export const UNRESOLVED_EXTERNAL = 'Referenced but not found by any scanner.';
 
 export interface Endpoint {
   method: string;

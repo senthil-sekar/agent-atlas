@@ -4,10 +4,12 @@ import { relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { buildAtlas } from './build.js';
 import { CONFIG_FILE, ConfigError, initConfig, loadConfig } from './config.js';
+import { describeDoctor, diagnose } from './doctor.js';
 import { describeDrift, diffAtlas, hasDrift } from './drift.js';
 import { AtlasGraph } from './graph.js';
 import { readAtlas, serializeAtlas, writeOutputs } from './io.js';
 import { runStdioServer } from './mcp.js';
+import { pack } from './pack.js';
 import { flowDiagram, topologyDiagram } from './render/mermaid.js';
 import { describeFlow, describeImpact, describeNode, describePath, hopList, summary, type SummaryLevel } from './render/text.js';
 import { VERSION } from './version.js';
@@ -20,8 +22,10 @@ Commands
   init                     Create agentatlas.yaml in the target directory
   scan                     Scan code, config, IaC, and traces; write .agentatlas/atlas.yaml and SYSTEM.md
   check                    Fail (exit 1) if the committed atlas no longer matches the code
+  doctor                   Report what scanners could not resolve, with paste-ready fixes
   summary                  Print a system summary        [--level brief|standard|full] [--max-tokens N]
   show <id>                Show one service, store, topic, or external system
+  pack <id>                The smallest map an agent needs before changing <id> [--depth N] [--max-tokens N]
   deps <id>                What <id> depends on          [--depth N]
   callers <id>             What depends on <id>          [--depth N]
   impact <id>              Blast radius of changing <id> [--depth N]
@@ -108,6 +112,16 @@ function main(argv: string[]): number | Promise<number> {
       const drift = diffAtlas(committed, buildAtlas(dir).atlas);
       console.log(describeDrift(drift));
       return hasDrift(drift) ? 1 : 0;
+    }
+    case 'doctor': {
+      console.log(describeDoctor(diagnose(loadGraph().atlas)));
+      return 0;
+    }
+    case 'pack': {
+      const g = loadGraph();
+      const n = need(g, args[0]);
+      console.log(pack(g, n.id, { depth, maxTokens: values['max-tokens'] ? Number(values['max-tokens']) : undefined }));
+      return 0;
     }
     case 'summary': {
       const level = values.level as SummaryLevel;

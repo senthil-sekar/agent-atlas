@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Sharper answers for agents
+- New `agentatlas pack <id>` command and `pack_context` MCP tool: the smallest map an agent needs before changing one node, trimmed to a token budget by dropping the least important section first (full flow detail, then transitive dependencies, then transitive impact), never the node's own direct dependencies and callers
+- New `codeowners` scanner: attributes each service's `owner` from `.github/CODEOWNERS` (or `CODEOWNERS`, `docs/CODEOWNERS`), so `impact` and `get_service` can say who to tell. A manual `owner` in `agentatlas.yaml` still wins
+- New `agentatlas doctor` command: reports stores guessed from a dependency but never named by configuration, compute nodes with no edges at all, and external systems with no real description — each with a paste-ready `agentatlas.yaml` fix
+
 ### Edges, not just nodes
 - Configuration is now a first-class source of edges. `interpretSettings` normalizes environment-variable keys (`QUOTE_API_URL`, `ConnectionStrings__Quote`), recognizes connection strings and DSNs wherever they appear, and decides messaging direction from the key and the service's role
 - New `env` scanner: `.env` files name stores, service URLs, topics, and queues for every language
