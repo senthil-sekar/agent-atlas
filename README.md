@@ -131,6 +131,7 @@ agentatlas path <from> <to>         Route between two nodes
 agentatlas flow [id] [--diagram]    List flows or show one
 agentatlas diagram [--focus id] [--depth N] [--out file]
 agentatlas merge <dir...>           Combine several repos' committed atlases into one [--out dir] [--name] [--config file]
+agentatlas workspace <dir>          Discover repos under <dir> and merge them into one [--out dir] [--name] [--config file]
 agentatlas fetch-traces             Fetch traces from Jaeger or Application Insights, write OTLP JSON for `scan` to read
 agentatlas validate <file>          Check a proposed design (Mermaid flowchart or {nodes,edges} fragment) against the live atlas
 agentatlas mcp                      MCP server on stdio
@@ -201,6 +202,14 @@ agentatlas merge ../quote-service ../policy-service ../rating-service --out ../p
 ```
 
 An id that appears in more than one repo's atlas is treated as the same node — right for a topic every team's service touches, wrong for two repos that coincidentally named a service the same thing. Merge only sees the ids each repo already committed, so it can unify two different ids for the same real resource (`--config` pointing at a file with an `aliases:` section, same shape as `agentatlas.yaml`), but it can't separate a genuine collision after the fact — that's fixed at the source, by giving the repo a distinct id before committing its atlas.
+
+If every repo is checked out as a sibling folder in one workspace directory, `workspace` skips the per-repo bookkeeping: it finds them (any subdirectory with a `.git` checkout, or an `agentatlas.yaml`/`.agentatlas/atlas.yaml`) and merges them in one step, same rules as `merge`:
+
+```bash
+agentatlas workspace ~/code/platform --out ~/code/platform-map --name "Personal Lines Platform"
+```
+
+A repo with a committed atlas uses it as-is; one that hasn't run `scan` yet is scanned in memory on the spot (nothing is written back into that repo) so the combined map stays current without requiring every repo to commit first.
 
 ## Traces from a live backend
 

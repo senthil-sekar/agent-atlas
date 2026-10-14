@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Workspace-wide scanning
+- New `agentatlas workspace <dir>` command: discovers repos checked out as sibling folders under `<dir>` (a `.git` checkout, or an existing `agentatlas.yaml`/`.agentatlas/atlas.yaml`) and merges them into one system view in a single step, same rules as `merge`. A repo with a committed atlas uses it as-is; one that hasn't been scanned yet is scanned in memory on the spot, so the combined map doesn't require every repo to commit first
+
 ### Contract-aware impact analysis
 - `agentatlas impact <id> --contract "POST /v1/quotes"` and the `impact_of_change` MCP tool's new `contract` parameter scope direct dependents to the ones with recorded evidence of using that endpoint or message type. A direct dependent is only ruled out when an edge confirms a *different* contract; one with no contract info at all is kept as "possibly affected" rather than silently dropped, since the graph can't rule it out. Dependents beyond the direct callers continue as the normal unscoped transitive walk
 
