@@ -10,6 +10,7 @@ import { AtlasGraph } from './graph.js';
 import { readAtlas, serializeAtlas, writeOutputs } from './io.js';
 import { runStdioServer } from './mcp.js';
 import { defaultMergeName, emptyMergeConfig, loadMergeSources, mergeAtlases } from './merge.js';
+import { discoverRepos, loadWorkspaceSources } from './workspace.js';
 import { pack } from './pack.js';
 import { flowDiagram, topologyDiagram } from './render/mermaid.js';
 import { describeContractImpact, describeFlow, describeImpact, describeNode, describePath, hopList, summary, type SummaryLevel } from './render/text.js';
@@ -38,6 +39,7 @@ Commands
   flow [id]                List flows, or show one       [--diagram]
   diagram                  Print a Mermaid diagram       [--focus id] [--depth N] [--out file]
   merge <dir...>           Combine several repos' committed atlases into one [--out dir] [--name] [--config file]
+  workspace <dir>          Discover repos under <dir> and merge them into one [--out dir] [--name] [--config file]
   fetch-traces             Fetch traces from Jaeger or Application Insights, write OTLP JSON for \`scan\` to read
                              --source jaeger --url <base> --service <name> [--limit N] [--out file]
                              --source appinsights --app-id <id> [--limit N] [--out file]
@@ -206,6 +208,21 @@ function main(argv: string[]): number | Promise<number> {
       const atlas = mergeAtlases(inputs, mergeConfig);
       const written = writeOutputs(values.out, atlas);
       console.log(`Merged ${inputs.length} repos into ${atlas.system.name}: ${atlas.nodes.length} nodes, ${atlas.edges.length} edges, ${atlas.flows.length} flows.`);
+      written.forEach((w) => console.log(`Wrote ${relative(process.cwd(), w)}`));
+      return 0;
+    }
+    case 'workspace': {
+      if (!args[0]) throw new UsageError('Usage: agentatlas workspace <dir> --out <dir> [--name "System name"] [--config file]');
+      if (!values.out) throw new UsageError('workspace requires --out <dir> to write the combined atlas.yaml and SYSTEM.md');
+      const repos = discoverRepos(resolve(args[0]));
+      if (!repos.length) throw new UsageError(`No repos found under ${args[0]} (looked for subdirectories with a .git checkout or an agentatlas.yaml/atlas.yaml).`);
+      const sources = loadWorkspaceSources(repos);
+      sources.filter((s) => !s.committed).forEach((s) => console.error(`(no .agentatlas/atlas.yaml in ${relative(process.cwd(), s.dir)}; scanning in memory)`));
+      const base = values.config ? loadConfigFile(resolve(values.config)) : emptyMergeConfig(defaultMergeName(sources));
+      const mergeConfig = values.name ? { ...base, system: { ...base.system, name: values.name } } : base;
+      const atlas = mergeAtlases(sources, mergeConfig);
+      const written = writeOutputs(values.out, atlas);
+      console.log(`Scanned workspace (${repos.length} repos) into ${atlas.system.name}: ${atlas.nodes.length} nodes, ${atlas.edges.length} edges, ${atlas.flows.length} flows.`);
       written.forEach((w) => console.log(`Wrote ${relative(process.cwd(), w)}`));
       return 0;
     }

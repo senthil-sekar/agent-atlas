@@ -79,6 +79,12 @@ service calls which, who consumes a message, what breaks downstream.
   at all is kept as "possibly affected" rather than silently dropped. Beyond the
   direct callers, impact continues as the normal unscoped transitive walk — a static
   graph can't trace one specific contract through further hops of business logic.
+- **Workspace-wide scanning** (shipped): `agentatlas workspace <dir>` discovers
+  repos checked out as sibling folders under one workspace directory (a `.git`
+  checkout, or an existing `agentatlas.yaml`/`.agentatlas/atlas.yaml`) and merges
+  them in one step, the same rules as `merge`. A repo with a committed atlas uses
+  it as-is; one that hasn't been scanned yet is scanned in memory on the spot, so
+  building the combined picture doesn't require every repo to commit first.
 
 ## Next
 - Terraform coverage for Google Cloud resource types.
