@@ -1,5 +1,5 @@
 /** Compact, token-aware text views shared by the CLI and the MCP server. */
-import type { AtlasGraph, Hop } from '../graph.js';
+import { type ContractImpact, type AtlasGraph, type Hop, matchContract } from '../graph.js';
 import type { AtlasEdge, AtlasNode, Flow } from '../model.js';
 import { estimateTokens } from '../util.js';
 import { topologyDiagram } from './mermaid.js';
@@ -76,6 +76,45 @@ export function describeImpact(graph: AtlasGraph, n: AtlasNode, hops: Hop[]): st
   for (const [depth, list] of byDepth) {
     lines.push(depth === 1 ? 'Direct dependents:' : `${depth} hops away:`);
     list.forEach((h) => lines.push(`- ${h.node.id} [${h.node.kind}] (${h.edge.from} ${verb[h.edge.kind][0]} ${h.edge.to})`));
+  }
+  const flows = graph.flowsFor(n.id);
+  if (flows.length) lines.push(`Flows that pass through ${n.id}: ${flows.map((f) => f.id).join(', ')}`);
+  return lines.join('\n');
+}
+
+/**
+ * Like `describeImpact`, but scoped to one endpoint or message type: direct dependents split into
+ * confirmed (an edge records this exact contract) and possibly-affected (an edge with no recorded
+ * contract, so it can't be ruled out); dependents ruled out entirely are listed separately.
+ */
+export function describeContractImpact(graph: AtlasGraph, n: AtlasNode, contract: string, { hops, cleared }: ContractImpact): string {
+  const lines: string[] = [];
+  const known = [...(n.endpoints ?? []).map((e) => `${e.method} ${e.path}`), ...(n.messages ?? []).map((m) => m.name)];
+  if (known.length && !known.includes(contract)) {
+    lines.push(`Note: "${contract}" isn't among ${n.id}'s known endpoints/messages: ${known.join(', ')}. Checking anyway.`, '');
+  }
+
+  if (!hops.length) {
+    lines.push(`No caller of ${n.id} is confirmed to use "${contract}".${cleared.length ? ` (${cleared.length} ruled out below.)` : ''}`);
+  } else {
+    lines.push(`Changing "${contract}" on ${n.id} can affect ${hops.length} node(s):`);
+    const byDepth = new Map<number, Hop[]>();
+    hops.forEach((h) => byDepth.set(h.depth, [...(byDepth.get(h.depth) ?? []), h]));
+    const line = (h: Hop) => `- ${h.node.id} [${h.node.kind}] (${h.edge.from} ${verb[h.edge.kind][0]} ${h.edge.to})`;
+    for (const [depth, list] of byDepth) {
+      if (depth === 1) {
+        const confirmed = list.filter((h) => matchContract(h.edge, contract) === 'confirmed');
+        const unknown = list.filter((h) => matchContract(h.edge, contract) === 'unknown');
+        if (confirmed.length) lines.push('Confirmed (an edge records this exact contract):', ...confirmed.map(line));
+        if (unknown.length) lines.push("Possibly affected (no contract recorded on this edge, can't rule it out):", ...unknown.map(line));
+      } else {
+        lines.push(`${depth} hops away:`, ...list.map(line));
+      }
+    }
+  }
+
+  if (cleared.length) {
+    lines.push('', `Ruled out (confirmed to use a different contract): ${cleared.map((c) => c.node.id).join(', ')}`);
   }
   const flows = graph.flowsFor(n.id);
   if (flows.length) lines.push(`Flows that pass through ${n.id}: ${flows.map((f) => f.id).join(', ')}`);

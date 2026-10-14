@@ -12,7 +12,7 @@ import { runStdioServer } from './mcp.js';
 import { defaultMergeName, emptyMergeConfig, loadMergeSources, mergeAtlases } from './merge.js';
 import { pack } from './pack.js';
 import { flowDiagram, topologyDiagram } from './render/mermaid.js';
-import { describeFlow, describeImpact, describeNode, describePath, hopList, summary, type SummaryLevel } from './render/text.js';
+import { describeContractImpact, describeFlow, describeImpact, describeNode, describePath, hopList, summary, type SummaryLevel } from './render/text.js';
 import { fetchApplicationInsightsTraces } from './traces/appinsights.js';
 import { fetchJaegerTraces } from './traces/jaeger.js';
 import { readText } from './util.js';
@@ -33,7 +33,7 @@ Commands
   pack <id>                The smallest map an agent needs before changing <id> [--depth N] [--max-tokens N]
   deps <id>                What <id> depends on          [--depth N]
   callers <id>             What depends on <id>          [--depth N]
-  impact <id>              Blast radius of changing <id> [--depth N]
+  impact <id>              Blast radius of changing <id> [--depth N] [--contract "POST /v1/quotes"]
   path <from> <to>         How a request or message travels from <from> to <to>
   flow [id]                List flows, or show one       [--diagram]
   diagram                  Print a Mermaid diagram       [--focus id] [--depth N] [--out file]
@@ -60,6 +60,7 @@ function main(argv: string[]): number | Promise<number> {
     options: {
       dir: { type: 'string', default: '.' },
       depth: { type: 'string' },
+      contract: { type: 'string' },
       level: { type: 'string', default: 'standard' },
       'max-tokens': { type: 'string' },
       focus: { type: 'string' },
@@ -164,7 +165,8 @@ function main(argv: string[]): number | Promise<number> {
     case 'impact': {
       const g = loadGraph();
       const n = need(g, args[0]);
-      console.log(describeImpact(g, n, g.impact(n.id, depth ?? 5)));
+      if (values.contract) console.log(describeContractImpact(g, n, values.contract, g.impactOfContract(n.id, values.contract, depth ?? 5)));
+      else console.log(describeImpact(g, n, g.impact(n.id, depth ?? 5)));
       return 0;
     }
     case 'path': {

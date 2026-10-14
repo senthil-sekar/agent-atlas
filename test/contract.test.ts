@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildAtlas } from '../src/build.js';
+import { AtlasGraph } from '../src/graph.js';
+import { describeContractImpact } from '../src/render/text.js';
 import { project } from './helpers.js';
 
 describe('AsyncAPI', () => {
@@ -131,5 +133,63 @@ describe('OpenTelemetry contract info', () => {
     const { atlas } = buildAtlas(root);
     const edge = atlas.edges.find((e) => e.from === 'quote-api' && e.to === 'quote-bound')!;
     expect(edge.messageTypes).toEqual(['QuoteBound']);
+  });
+});
+
+describe('contract-aware impact analysis', () => {
+  const root = project({
+    'asyncapi.yaml': `
+asyncapi: 3.0.0
+info: { title: t, version: 1.0.0 }
+channels:
+  quote-bound:
+    messages:
+      QuoteBound: { name: QuoteBound }
+      PolicyIssued: { name: PolicyIssued }
+`,
+    'agentatlas.yaml': `
+version: 1
+system: { name: t }
+nodes:
+  - { id: quote-api, kind: service }
+  - { id: policy-worker, kind: service }
+  - { id: billing-worker, kind: service }
+edges:
+  - { from: quote-api, to: quote-bound, kind: publishes, messageTypes: [QuoteBound] }
+  - { from: policy-worker, to: quote-bound, kind: consumes, messageTypes: [QuoteBound] }
+  - { from: billing-worker, to: quote-bound, kind: consumes }
+`,
+  });
+  const { atlas } = buildAtlas(root);
+  const graph = new AtlasGraph(atlas);
+
+  it('scopes to the messageTypes field, keeping confirmed publisher/consumer and an unconfirmed one', () => {
+    const { hops, cleared } = graph.impactOfContract('quote-bound', 'QuoteBound');
+    expect(hops.map((h) => h.node.id).sort()).toEqual(['billing-worker', 'policy-worker', 'quote-api']);
+    expect(cleared).toEqual([]);
+  });
+
+  it('clears dependents confirmed to use a different message type, keeping the one with no evidence', () => {
+    const { hops, cleared } = graph.impactOfContract('quote-bound', 'PolicyIssued');
+    expect(hops.map((h) => h.node.id)).toEqual(['billing-worker']);
+    expect(cleared.map((c) => c.node.id).sort()).toEqual(['policy-worker', 'quote-api']);
+  });
+
+  it('renders confirmed, possibly-affected, and ruled-out sections', () => {
+    const n = graph.nodes.get('quote-bound')!;
+    const text = describeContractImpact(graph, n, 'QuoteBound', graph.impactOfContract('quote-bound', 'QuoteBound'));
+    expect(text).toContain('Confirmed (an edge records this exact contract):');
+    expect(text).toContain('- policy-worker [service]');
+    expect(text).toContain('- quote-api [service]');
+    expect(text).toContain("Possibly affected (no contract recorded on this edge, can't rule it out):");
+    expect(text).toContain('- billing-worker [service]');
+    expect(text).not.toContain('Ruled out');
+  });
+
+  it('renders a "Ruled out" footer and a note when the contract is unknown to the node', () => {
+    const n = graph.nodes.get('quote-bound')!;
+    const text = describeContractImpact(graph, n, 'ClaimFiled', graph.impactOfContract('quote-bound', 'ClaimFiled'));
+    expect(text).toContain('Note: "ClaimFiled" isn\'t among quote-bound\'s known endpoints/messages: QuoteBound, PolicyIssued. Checking anyway.');
+    expect(text).toContain('Ruled out (confirmed to use a different contract): policy-worker, quote-api');
   });
 });

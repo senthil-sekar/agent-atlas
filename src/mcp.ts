@@ -10,7 +10,7 @@ import { pack } from './pack.js';
 import { flowDiagram, topologyDiagram } from './render/mermaid.js';
 import { describeValidation, parseProposedDesign, validateDesign } from './validate.js';
 import { renderSystemMd } from './render/system-md.js';
-import { describeFlow, describeImpact, describeNode, describePath, hopList, summary } from './render/text.js';
+import { describeContractImpact, describeFlow, describeImpact, describeNode, describePath, hopList, summary } from './render/text.js';
 import { VERSION } from './version.js';
 
 /** Loads the committed atlas, reloading when the file changes; falls back to an in-memory scan. */
@@ -126,13 +126,20 @@ export function createServer(dir: string): McpServer {
 
   server.registerTool('impact_of_change', {
     title: 'Impact of change',
-    description: 'Blast radius: everything that directly or transitively depends on a node, grouped by distance, plus affected flows. Use before changing an API, schema, or message contract.',
-    inputSchema: { id: z.string(), maxDepth: z.number().int().min(1).max(10).default(5) },
+    description: 'Blast radius: everything that directly or transitively depends on a node, grouped by distance, plus affected flows. Pass `contract` (an endpoint like "POST /v1/quotes" or a message type name) to scope direct dependents to only those with evidence of using it; a caller with no recorded contract on its edge is kept as "possibly affected" rather than excluded, since nothing rules it out. Use before changing an API, schema, or message contract.',
+    inputSchema: {
+      id: z.string(),
+      maxDepth: z.number().int().min(1).max(10).default(5),
+      contract: z.string().optional().describe('An endpoint ("POST /v1/quotes") or message type name to scope the impact to'),
+    },
     annotations: readOnly,
-  }, async ({ id, maxDepth }) => {
+  }, async ({ id, maxDepth, contract }) => {
     const g = source.get();
     const r = lookup(g, id);
-    return r.node ? text(describeImpact(g, r.node, g.impact(r.node.id, maxDepth))) : fail(r.error!);
+    if (!r.node) return fail(r.error!);
+    return text(contract
+      ? describeContractImpact(g, r.node, contract, g.impactOfContract(r.node.id, contract, maxDepth))
+      : describeImpact(g, r.node, g.impact(r.node.id, maxDepth)));
   });
 
   server.registerTool('trace_flow', {

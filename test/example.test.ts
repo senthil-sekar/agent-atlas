@@ -70,6 +70,26 @@ describe('quote-to-bind example', () => {
     expect(graph.path('policy-db', 'apim')).toBeUndefined();
   });
 
+  it('scopes impact to a confirmed contract, propagating transitively from there', () => {
+    // quote-api -calls-> rating-engine is recorded with endpoints: [POST /v1/premiums].
+    const { hops, cleared } = graph.impactOfContract('rating-engine', 'POST /v1/premiums');
+    expect(hops.map((h) => `${h.depth}:${h.node.id}`)).toEqual(['1:quote-api', '2:gateway', '3:apim']);
+    expect(cleared).toEqual([]);
+  });
+
+  it('clears a direct dependent whose edge confirms a different contract', () => {
+    const { hops, cleared } = graph.impactOfContract('rating-engine', 'GET /v1/does-not-exist');
+    expect(hops).toEqual([]);
+    expect(cleared.map((c) => c.node.id)).toEqual(['quote-api']);
+  });
+
+  it("keeps a dependent whose edge has no recorded contract -- it can't be ruled out", () => {
+    // quote-api -stores-> quote-db has no endpoints/messageTypes at all.
+    const { hops, cleared } = graph.impactOfContract('quote-db', 'POST /v1/quotes');
+    expect(hops.map((h) => `${h.depth}:${h.node.id}`)).toEqual(['1:quote-api', '2:gateway', '3:apim']);
+    expect(cleared).toEqual([]);
+  });
+
   it('resolves names and reports ambiguity', () => {
     expect(graph.resolve('Contoso.Quote.Api').node?.id).toBe('quote-api');
     expect(graph.resolve('rating').node?.id).toBe('rating-engine');

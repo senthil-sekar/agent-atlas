@@ -71,11 +71,16 @@ service calls which, who consumes a message, what breaks downstream.
   `{nodes, edges}` fragment path for tools that do emit one. Checks broken
   references, an id reused for something else, edges crossing team ownership, and
   cycles a design would introduce.
+- **Contract-aware impact analysis** (shipped): `agentatlas impact <id> --contract
+  "POST /v1/quotes"` and the `impact_of_change` MCP tool's `contract` parameter scope
+  direct dependents to the ones with recorded evidence of using that endpoint or
+  message type. Honest about what the graph doesn't know: a direct dependent is only
+  ruled out when an edge confirms a *different* contract; one with no contract info
+  at all is kept as "possibly affected" rather than silently dropped. Beyond the
+  direct callers, impact continues as the normal unscoped transitive walk — a static
+  graph can't trace one specific contract through further hops of business logic.
 
 ## Next
-- Contract-aware impact analysis: use `endpoints`/`messageTypes` on edges to scope
-  `impact_of_change` to only the dependents that actually touch the changed contract,
-  not everything downstream.
 - Terraform coverage for Google Cloud resource types.
 - `agentatlas validate` against a *committed* fragment in CI (not just ad hoc), so a
   team's own service-boundary rules (no direct cross-team calls, no cycles) gate PRs.
