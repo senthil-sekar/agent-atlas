@@ -2,6 +2,25 @@ import type { Atlas, AtlasEdge, AtlasNode, Flow } from './model.js';
 
 export interface Hop { node: AtlasNode; edge: AtlasEdge; depth: number }
 
+export type ContractMatch = 'confirmed' | 'unknown' | 'cleared';
+
+/**
+ * Does this edge's recorded evidence (endpoints for `calls`, message types for `publishes`/
+ * `consumes`) include `contract`? No evidence at all is "unknown" -- it can't be ruled out, only
+ * evidence of a *different* contract clears it.
+ */
+export function matchContract(edge: AtlasEdge, contract: string): ContractMatch {
+  const fields = edge.endpoints?.length ? edge.endpoints : edge.messageTypes?.length ? edge.messageTypes : undefined;
+  if (!fields) return 'unknown';
+  return fields.includes(contract) ? 'confirmed' : 'cleared';
+}
+
+export interface ContractImpact {
+  hops: Hop[];
+  /** Direct dependents where every edge into the node confirms a *different* contract. */
+  cleared: Array<{ node: AtlasNode; edge: AtlasEdge }>;
+}
+
 /** Read-only queries over an atlas. Used by the CLI and the MCP server. */
 export class AtlasGraph {
   readonly nodes: Map<string, AtlasNode>;
@@ -28,8 +47,12 @@ export class AtlasGraph {
   outgoing(id: string): AtlasEdge[] { return this.out.get(id) ?? []; }
   incoming(id: string): AtlasEdge[] { return this.in.get(id) ?? []; }
 
-  /** Breadth-first walk. `direction: "out"` = what id depends on; `"in"` = what depends on id. */
-  walk(id: string, direction: 'out' | 'in', maxDepth: number): Hop[] {
+  /**
+   * Breadth-first walk. `direction: "out"` = what id depends on; `"in"` = what depends on id.
+   * `filter`, if given, excludes an edge (and so the hop it would create) at the depth it's tested;
+   * a node already reached via a kept edge at an earlier depth is never revisited.
+   */
+  walk(id: string, direction: 'out' | 'in', maxDepth: number, filter?: (edge: AtlasEdge, depth: number) => boolean): Hop[] {
     const seen = new Set([id]);
     const hops: Hop[] = [];
     let frontier = [id];
@@ -38,6 +61,7 @@ export class AtlasGraph {
       for (const cur of frontier) {
         const edges = direction === 'out' ? this.outgoing(cur) : this.incoming(cur);
         for (const edge of edges) {
+          if (filter && !filter(edge, depth)) continue;
           const other = direction === 'out' ? edge.to : edge.from;
           if (seen.has(other)) continue;
           seen.add(other);
@@ -55,6 +79,28 @@ export class AtlasGraph {
 
   /** Everything that could break if `id` changes: transitive dependents. */
   impact(id: string, maxDepth = 5) { return this.walk(id, 'in', maxDepth); }
+
+  /**
+   * Everything that could break if one specific endpoint or message type on `id` changes. A direct
+   * caller is excluded (`cleared`) only when every edge it has into `id` carries recorded evidence
+   * of a *different* contract; a caller with no recorded contract at all is kept, since nothing
+   * rules it out. Once a direct dependent is kept, its own transitive dependents follow the normal
+   * unscoped walk -- a static graph can't trace one contract through another hop of business logic.
+   */
+  impactOfContract(id: string, contract: string, maxDepth = 5): ContractImpact {
+    const byFrom = new Map<string, AtlasEdge[]>();
+    for (const edge of this.incoming(id)) byFrom.set(edge.from, [...(byFrom.get(edge.from) ?? []), edge]);
+
+    const cleared: ContractImpact['cleared'] = [];
+    const keep = new Set<string>();
+    for (const [from, edges] of byFrom) {
+      if (edges.every((e) => matchContract(e, contract) === 'cleared')) cleared.push({ node: this.nodes.get(from)!, edge: edges[0]! });
+      else keep.add(from);
+    }
+
+    const hops = this.walk(id, 'in', maxDepth, (edge, depth) => depth > 1 || keep.has(edge.from));
+    return { hops, cleared };
+  }
 
   /**
    * Shortest dependency path from `from` to `to`. Messaging edges are followed in the direction

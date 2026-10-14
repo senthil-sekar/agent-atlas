@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Contract-aware impact analysis
+- `agentatlas impact <id> --contract "POST /v1/quotes"` and the `impact_of_change` MCP tool's new `contract` parameter scope direct dependents to the ones with recorded evidence of using that endpoint or message type. A direct dependent is only ruled out when an edge confirms a *different* contract; one with no contract info at all is kept as "possibly affected" rather than silently dropped, since the graph can't rule it out. Dependents beyond the direct callers continue as the normal unscoped transitive walk
+
 ### Contracts, multi-repo, and design validation
 - `AtlasEdge` gains `endpoints` (which route of the target a `calls` edge hits) and `messageTypes` (which message a `publishes`/`consumes` edge carries). `otel` sources both from real traffic; a topic's message type auto-attaches to its edges when unambiguous
 - New `asyncapi` scanner: a topic or queue's `messages` catalog (AsyncAPI v2 and v3), mirroring `openapi`'s endpoints

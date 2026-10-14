@@ -103,7 +103,7 @@ All tools are read-only.
 | `get_service` | Everything about one node: tech, hosting, code path, dependencies, users, endpoints, flows |
 | `get_dependencies` | What does X depend on, N hops deep? |
 | `find_callers` | What depends on X? |
-| `impact_of_change` | What could break if X changes, grouped by distance? |
+| `impact_of_change` | What could break if X changes, grouped by distance? Pass `contract` (an endpoint or message type) to scope direct dependents to the ones with evidence of using it. |
 | `trace_flow` | How does a request get from A to B (following async hops)? Or: show a named flow step by step. |
 | `list_flows` | Which end-to-end flows are known? |
 | `search_atlas` | Where is the thing that handles "bind" or uses Redis? |
@@ -126,7 +126,7 @@ agentatlas show <id>                One node in detail
 agentatlas pack <id> [--depth N] [--max-tokens N]  The smallest map an agent needs before changing <id>
 agentatlas deps <id> [--depth N]    What <id> depends on
 agentatlas callers <id> [--depth N] What depends on <id>
-agentatlas impact <id> [--depth N]  Blast radius
+agentatlas impact <id> [--depth N] [--contract "POST /v1/quotes"]  Blast radius, optionally scoped to one contract
 agentatlas path <from> <to>         Route between two nodes
 agentatlas flow [id] [--diagram]    List flows or show one
 agentatlas diagram [--focus id] [--depth N] [--out file]
