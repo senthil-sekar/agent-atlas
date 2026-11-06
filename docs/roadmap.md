@@ -85,8 +85,13 @@ service calls which, who consumes a message, what breaks downstream.
   them in one step, the same rules as `merge`. A repo with a committed atlas uses
   it as-is; one that hasn't been scanned yet is scanned in memory on the spot, so
   building the combined picture doesn't require every repo to commit first.
+- **Terraform coverage for Google Cloud** (shipped): the `terraform` scanner now
+  recognizes `google_*` resource types the same way it already does `azurerm_*`/
+  `aws_*`: Cloud Run and Cloud Functions, API Gateway, Cloud SQL (engine mapped from
+  `database_version`), Spanner, Firestore, Bigtable, Memorystore for Redis, Pub/Sub
+  topics, and Cloud Storage. Cloud Functions' `environment_variables` map is read
+  into edges the same way `app_settings`/`env` already are.
 
 ## Next
-- Terraform coverage for Google Cloud resource types.
 - `agentatlas validate` against a *committed* fragment in CI (not just ad hoc), so a
   team's own service-boundary rules (no direct cross-team calls, no cycles) gate PRs.

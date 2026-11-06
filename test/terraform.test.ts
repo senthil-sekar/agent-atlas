@@ -66,6 +66,52 @@ resource "aws_sqs_queue" "claims" {
     expect(byId.get('claims-queue')!.kind).toBe('queue');
   });
 
+  it('reads google resources, including env blocks on Cloud Run and the map form on Cloud Functions', () => {
+    const root = project({
+      'main.tf': `
+resource "google_cloud_run_v2_service" "quote_api" {
+  name = "quote-api"
+  template {
+    containers {
+      env {
+        name  = "DATABASE_URL"
+        value = "postgres://quote-db:5432/quotes"
+      }
+    }
+  }
+}
+
+resource "google_cloudfunctions2_function" "notifier" {
+  name = "notifier"
+  service_config {
+    environment_variables = {
+      RATING_ENGINE_URL = "http://rating-engine:8080"
+    }
+  }
+}
+
+resource "google_sql_database_instance" "policy" {
+  name             = "policy-db"
+  database_version = "POSTGRES_15"
+}
+
+resource "google_pubsub_topic" "quote_bound" {
+  name = "quote-bound"
+}
+`,
+    });
+    const { atlas } = buildAtlas(root);
+    const byId = new Map(atlas.nodes.map((n) => [n.id, n]));
+    expect(byId.get('quote-api')!.kind).toBe('service');
+    expect(byId.get('quote-api')!.hosting).toBe('Google Cloud Run');
+    expect(byId.get('notifier')!.kind).toBe('function');
+    expect(byId.get('notifier')!.hosting).toBe('Google Cloud Functions');
+    expect(byId.get('policy-db')!.tech).toEqual(['Cloud SQL for PostgreSQL']);
+    expect(byId.get('quote-bound')!.kind).toBe('topic');
+    const edges = atlas.edges.map((e) => `${e.from}-${e.kind}-${e.to}`);
+    expect(edges).toEqual(expect.arrayContaining(['quote-api-stores-quote-db', 'notifier-calls-rating-engine']));
+  });
+
   it('warns instead of guessing when the name is not a literal', () => {
     const root = project({
       'main.tf': `
