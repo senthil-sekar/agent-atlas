@@ -70,6 +70,13 @@ export const configSchema = z.object({
   aliases: z.record(z.string(), z.string()).default({}),
   /** Ids to drop from the atlas, with their edges. */
   ignore: z.array(z.string()).default([]),
+  /** Standing service-boundary rules `agentatlas validate` (no file given) checks the live atlas against. Opt-in, for CI. */
+  rules: z
+    .object({
+      noCrossTeamCalls: z.boolean().default(false),
+      noCycles: z.boolean().default(false),
+    })
+    .prefault({}),
   nodes: z.array(manualNode).default([]),
   edges: z.array(manualEdge).default([]),
   flows: z.array(manualFlow).default([]),
@@ -116,6 +123,7 @@ export function initConfig(dir: string, force = false): string {
     scan: { exclude: [], stripPrefixes: [] },
     aliases: {},
     ignore: [],
+    rules: { noCrossTeamCalls: false, noCycles: false },
     nodes: [],
     edges: [],
     flows: [],
