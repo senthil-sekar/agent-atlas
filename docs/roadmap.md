@@ -91,7 +91,14 @@ service calls which, who consumes a message, what breaks downstream.
   `database_version`), Spanner, Firestore, Bigtable, Memorystore for Redis, Pub/Sub
   topics, and Cloud Storage. Cloud Functions' `environment_variables` map is read
   into edges the same way `app_settings`/`env` already are.
+- **Gate PRs on your own service-boundary rules** (shipped, rescoped): rather than a
+  design fragment committed once and checked ad hoc, `agentatlas validate` with no
+  file now checks the real, current atlas itself against a `rules:` section in
+  `agentatlas.yaml` (`noCrossTeamCalls`, `noCycles`; both opt-in, off by default) and
+  exits 1 on a violation — wired into CI next to `check`, this is what actually gates
+  a PR on a team's rules, catching a violation the moment it lands rather than only
+  when someone remembers to re-run an ad hoc check against a point-in-time design doc.
 
 ## Next
-- `agentatlas validate` against a *committed* fragment in CI (not just ad hoc), so a
-  team's own service-boundary rules (no direct cross-team calls, no cycles) gate PRs.
+
+Nothing queued. Every item planned through 0.3 and "Later" has shipped.

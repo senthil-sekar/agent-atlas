@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Gate PRs on your own service-boundary rules
+- New `rules:` section in `agentatlas.yaml` (`noCrossTeamCalls`, `noCycles`; both off by default) and `agentatlas validate` with no file argument: instead of checking a one-off proposed design, it checks the real, current atlas against these opted-in rules and exits 1 on a violation — so it can gate CI the same way `check` does for drift, rather than only being run ad hoc against a design doc
+
 ### Terraform coverage for Google Cloud
 - The `terraform` scanner now recognizes `google_*` resource types, mirroring its existing `azurerm_*`/`aws_*` coverage: Cloud Run and Cloud Functions (compute), API Gateway, Cloud SQL (with `database_version` mapped to the matching Cloud SQL engine, same pattern as `aws_db_instance`'s `engine`), Spanner, Firestore, Bigtable, Memorystore for Redis, Pub/Sub topics, and Cloud Storage buckets. Cloud Functions' `environment_variables = { ... }` map is now also read into edges, alongside the existing `variables`/`app_settings`/`env` forms
 

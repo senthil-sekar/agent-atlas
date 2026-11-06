@@ -3,9 +3,9 @@ import { buildAtlas } from '../src/build.js';
 import { AtlasGraph } from '../src/graph.js';
 import {
   describeValidation, extractMermaidBlocks, parseDesignFragment, parseMermaidFlowchart,
-  parseProposedDesign, validateDesign,
+  parseProposedDesign, validateAtlas, validateDesign,
 } from '../src/validate.js';
-import { EXAMPLE } from './helpers.js';
+import { EXAMPLE, project } from './helpers.js';
 
 const graph = new AtlasGraph(buildAtlas(EXAMPLE).atlas);
 
@@ -102,5 +102,44 @@ describe('validateDesign', () => {
     const design = { nodes: [], edges: [{ from: 'rating-engine', to: 'quote-api', kind: 'calls' }] };
     const findings = validateDesign(graph, design);
     expect(findings.some((f) => f.level === 'warning' && f.message.includes('dependency cycle'))).toBe(true);
+  });
+});
+
+describe('validateAtlas (live-atlas rule checks, for CI)', () => {
+  it('finds nothing when no rule is enabled', () => {
+    expect(validateAtlas(graph, { noCrossTeamCalls: false, noCycles: false })).toEqual([]);
+  });
+
+  it('flags a direct cross-team call already in the atlas when noCrossTeamCalls is enabled', () => {
+    // quote-api (Quoting Team) calls rating-engine (Pricing Team) directly in the example atlas.
+    const findings = validateAtlas(graph, { noCrossTeamCalls: true, noCycles: false });
+    expect(findings).toEqual([
+      { level: 'warning', message: '"quote-api" (Quoting Team) calls "rating-engine" (Pricing Team) directly, crossing team ownership.' },
+    ]);
+  });
+
+  it('leaves same-owner and unowned calls alone', () => {
+    // policy-worker -> policy-admin are both Policy Systems; apim/gateway/quote-api have no owner set on one side.
+    const findings = validateAtlas(graph, { noCrossTeamCalls: true, noCycles: false });
+    expect(findings.some((f) => f.message.includes('policy-worker'))).toBe(false);
+    expect(findings.some((f) => f.message.includes('gateway'))).toBe(false);
+  });
+
+  it('flags a cycle already in the atlas when noCycles is enabled', () => {
+    const root = project({
+      'agentatlas.yaml': `
+version: 1
+system: { name: t }
+nodes:
+  - { id: a, kind: service }
+  - { id: b, kind: service }
+edges:
+  - { from: a, to: b, kind: calls }
+  - { from: b, to: a, kind: calls }
+`,
+    });
+    const g = new AtlasGraph(buildAtlas(root).atlas);
+    const findings = validateAtlas(g, { noCrossTeamCalls: false, noCycles: true });
+    expect(findings).toEqual([{ level: 'warning', message: 'Dependency cycle: a → b → a.' }]);
   });
 });

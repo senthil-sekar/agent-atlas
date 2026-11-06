@@ -172,8 +172,37 @@ export function validateDesign(graph: AtlasGraph, design: ProposedDesign): Valid
   return findings;
 }
 
+export interface Rules { noCrossTeamCalls: boolean; noCycles: boolean }
+
+/**
+ * Checks the live atlas itself -- not a hypothetical proposed design -- against a team's own
+ * standing service-boundary rules, opted into via `rules:` in agentatlas.yaml. Meant for CI: this
+ * is what actually gates a PR, since it looks at the real current graph rather than a one-off file.
+ */
+export function validateAtlas(graph: AtlasGraph, rules: Rules): ValidationFinding[] {
+  const findings: ValidationFinding[] = [];
+
+  if (rules.noCrossTeamCalls) {
+    for (const e of graph.atlas.edges) {
+      if (e.kind !== 'calls') continue;
+      const from = graph.nodes.get(e.from), to = graph.nodes.get(e.to);
+      if (from?.owner && to?.owner && from.owner !== to.owner) {
+        findings.push({ level: 'warning', message: `"${e.from}" (${from.owner}) calls "${e.to}" (${to.owner}) directly, crossing team ownership.` });
+      }
+    }
+  }
+
+  if (rules.noCycles) {
+    const edges: Array<[string, string]> = graph.atlas.edges.filter((e) => CYCLE_KINDS.has(e.kind)).map((e) => [e.from, e.to]);
+    const cycle = findCycle(edges);
+    if (cycle) findings.push({ level: 'warning', message: `Dependency cycle: ${cycle.join(' → ')}.` });
+  }
+
+  return findings;
+}
+
 export function describeValidation(findings: ValidationFinding[]): string {
-  if (!findings.length) return 'No issues found: every reference resolves, no ownership crossings, no new cycles.';
+  if (!findings.length) return 'No issues found.';
   const warnings = findings.filter((f) => f.level === 'warning');
   const infos = findings.filter((f) => f.level === 'info');
   const lines: string[] = [];

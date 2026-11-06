@@ -133,7 +133,8 @@ agentatlas diagram [--focus id] [--depth N] [--out file]
 agentatlas merge <dir...>           Combine several repos' committed atlases into one [--out dir] [--name] [--config file]
 agentatlas workspace <dir>          Discover repos under <dir> and merge them into one [--out dir] [--name] [--config file]
 agentatlas fetch-traces             Fetch traces from Jaeger or Application Insights, write OTLP JSON for `scan` to read
-agentatlas validate <file>          Check a proposed design (Mermaid flowchart or {nodes,edges} fragment) against the live atlas
+agentatlas validate [file]          Check a proposed design (Mermaid flowchart or {nodes,edges} fragment) against the live atlas
+                                     With no file: check the live atlas against `rules:` in agentatlas.yaml. For CI.
 agentatlas mcp                      MCP server on stdio
 ```
 
@@ -160,6 +161,10 @@ aliases:                                  # scanned id → the id you want
   quoteservice: quote-api
 
 ignore: [sqlserver, azurite]              # local emulators, noise
+
+rules:                                    # opt-in; `agentatlas validate` (no file) gates CI on these
+  noCrossTeamCalls: true
+  noCycles: true
 
 nodes:                                    # add systems scanners can't see, or enrich found ones
   - id: policy-admin
@@ -274,6 +279,26 @@ agentatlas validate docs/design/quote-express/design.md
 ```
 
 It flags broken references, an id the design reuses for something that already exists as a different kind of node, edges that cross from one team's code into another's, and dependency cycles the design would introduce — as notes and warnings, not a pass/fail gate (`validate` exits 1 only on a warning, so it can gate CI if you want that).
+
+## Gate PRs on your own service-boundary rules
+
+That's checking a *proposed* design. Run `agentatlas validate` with no file and it instead checks the real, current atlas — the one `scan` would produce right now — against standing rules opted into in `agentatlas.yaml`:
+
+```yaml
+rules:
+  noCrossTeamCalls: true   # a service calling directly into another team's node is a warning
+  noCycles: true            # any dependency cycle among calls/depends edges is a warning
+```
+
+```bash
+agentatlas validate   # exits 1 if either enabled rule finds a violation
+```
+
+Both default to off — nothing changes until a team opts in. Wired into CI next to `check`, this is what actually gates a PR on your rules, not just a point-in-time report:
+
+```yaml
+- run: npx -y agentatlas validate
+```
 
 ## Development
 

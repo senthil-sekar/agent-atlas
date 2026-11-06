@@ -17,7 +17,7 @@ import { describeContractImpact, describeFlow, describeImpact, describeNode, des
 import { fetchApplicationInsightsTraces } from './traces/appinsights.js';
 import { fetchJaegerTraces } from './traces/jaeger.js';
 import { readText } from './util.js';
-import { describeValidation, parseProposedDesign, validateDesign } from './validate.js';
+import { describeValidation, parseProposedDesign, validateAtlas, validateDesign } from './validate.js';
 import { VERSION } from './version.js';
 
 const HELP = `agentatlas ${VERSION}: map how your services connect, for humans and AI agents.
@@ -44,7 +44,8 @@ Commands
                              --source jaeger --url <base> --service <name> [--limit N] [--out file]
                              --source appinsights --app-id <id> [--limit N] [--out file]
                              (Jaeger token: --api-key or JAEGER_TOKEN; App Insights key: --api-key or APPLICATIONINSIGHTS_API_KEY)
-  validate <file>          Check a proposed design (a Mermaid flowchart or a {nodes,edges} fragment) against the live atlas
+  validate [file]          Check a proposed design (a Mermaid flowchart or a {nodes,edges} fragment) against the live atlas
+                             With no file: check the live atlas itself against \`rules:\` in agentatlas.yaml. For CI.
   mcp                      Start the MCP server on stdio
 
 Options
@@ -229,12 +230,21 @@ function main(argv: string[]): number | Promise<number> {
     case 'fetch-traces':
       return runFetchTraces(dir, values);
     case 'validate': {
-      const g = loadGraph();
       const file = args[0];
-      if (!file) throw new UsageError('Usage: agentatlas validate <file>');
-      const text = readText(resolve(file));
-      if (text === undefined) throw new UsageError(`File not found: ${file}`);
-      const findings = validateDesign(g, parseProposedDesign(text));
+      if (file) {
+        const g = loadGraph();
+        const text = readText(resolve(file));
+        if (text === undefined) throw new UsageError(`File not found: ${file}`);
+        const findings = validateDesign(g, parseProposedDesign(text));
+        console.log(describeValidation(findings));
+        return findings.some((f) => f.level === 'warning') ? 1 : 0;
+      }
+      const config = loadConfig(dir);
+      if (!config.rules.noCrossTeamCalls && !config.rules.noCycles) {
+        throw new UsageError('No rules enabled and no file given. Add `rules:` (noCrossTeamCalls, noCycles) to agentatlas.yaml, or pass a design file: agentatlas validate <file>.');
+      }
+      const g = new AtlasGraph(buildAtlas(dir, config).atlas);
+      const findings = validateAtlas(g, config.rules);
       console.log(describeValidation(findings));
       return findings.some((f) => f.level === 'warning') ? 1 : 0;
     }
