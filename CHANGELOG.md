@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 — 2026-11-06
 
 ### Gate PRs on your own service-boundary rules
 - New `rules:` section in `agentatlas.yaml` (`noCrossTeamCalls`, `noCycles`; both off by default) and `agentatlas validate` with no file argument: instead of checking a one-off proposed design, it checks the real, current atlas against these opted-in rules and exits 1 on a violation — so it can gate CI the same way `check` does for drift, rather than only being run ad hoc against a design doc
