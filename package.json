@@ -1,6 +1,6 @@
 {
   "name": "agentatlas",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Maps how your services connect and hands that map to AI agents, as a SYSTEM.md, a YAML graph, and an MCP server.",
   "type": "module",
   "bin": {
