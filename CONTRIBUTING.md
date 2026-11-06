@@ -52,3 +52,11 @@ If the topology diagram itself changed, also regenerate `docs/images/quote-to-bi
 ## Output stability
 
 `atlas.yaml` is committed by users, so keep its ordering deterministic and avoid gratuitous format changes. Diffs should reflect real topology changes.
+
+## Releasing
+
+1. Bump `version` in `package.json`.
+2. In `CHANGELOG.md`, rename `## Unreleased` to `## <version> — <date>` (or add that heading if the last release left nothing pending).
+3. Commit, merge to `main`, then create a GitHub Release with tag `v<version>` (matching `package.json` exactly) — publishing the release is what triggers `.github/workflows/publish.yml`.
+
+That workflow re-runs typecheck, tests, the build, and the example drift check before publishing, then runs `npm publish --provenance --access public` using the `NPM_TOKEN` repo secret (an npm Automation access token — set it once under the repo's Settings → Secrets, generated at npmjs.com → Access Tokens; the workflow never sees or needs any other credential). It also refuses to publish if the release tag doesn't match `package.json`'s version, so a release can't accidentally publish the wrong version.
