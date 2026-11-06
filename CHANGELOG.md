@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Terraform coverage for Google Cloud
+- The `terraform` scanner now recognizes `google_*` resource types, mirroring its existing `azurerm_*`/`aws_*` coverage: Cloud Run and Cloud Functions (compute), API Gateway, Cloud SQL (with `database_version` mapped to the matching Cloud SQL engine, same pattern as `aws_db_instance`'s `engine`), Spanner, Firestore, Bigtable, Memorystore for Redis, Pub/Sub topics, and Cloud Storage buckets. Cloud Functions' `environment_variables = { ... }` map is now also read into edges, alongside the existing `variables`/`app_settings`/`env` forms
+
 ### Workspace-wide scanning
 - New `agentatlas workspace <dir>` command: discovers repos checked out as sibling folders under `<dir>` (a `.git` checkout, or an existing `agentatlas.yaml`/`.agentatlas/atlas.yaml`) and merges them into one system view in a single step, same rules as `merge`. A repo with a committed atlas uses it as-is; one that hasn't been scanned yet is scanned in memory on the spot, so the combined map doesn't require every repo to commit first
 

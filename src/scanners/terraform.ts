@@ -15,8 +15,8 @@ interface TypeHint {
 }
 
 /**
- * Terraform resource type -> what it tells us. Covers the common azurerm and aws resource types;
- * other providers (google, kubernetes as a provider, etc.) aren't recognized yet.
+ * Terraform resource type -> what it tells us. Covers the common azurerm, aws, and google resource
+ * types; other providers (kubernetes as a provider, etc.) aren't recognized yet.
  */
 const TYPES: Record<string, TypeHint> = {
   // Azure
@@ -61,6 +61,26 @@ const TYPES: Record<string, TypeHint> = {
   aws_s3_bucket: { kind: 'storage', tech: 'Amazon S3', nameKey: 'bucket' },
   aws_opensearch_domain: { kind: 'search', tech: 'Amazon OpenSearch', nameKey: 'domain_name' },
   aws_elasticsearch_domain: { kind: 'search', tech: 'Amazon OpenSearch', nameKey: 'domain_name' },
+  // Google Cloud
+  google_cloud_run_service: { kind: 'service', hosting: 'Google Cloud Run' },
+  google_cloud_run_v2_service: { kind: 'service', hosting: 'Google Cloud Run' },
+  google_cloudfunctions_function: { kind: 'function', hosting: 'Google Cloud Functions' },
+  google_cloudfunctions2_function: { kind: 'function', hosting: 'Google Cloud Functions' },
+  google_api_gateway_gateway: { kind: 'gateway', tech: 'Google API Gateway' },
+  google_sql_database_instance: {
+    kind: 'database',
+    techFromAttr: { attr: 'database_version', map: {
+      POSTGRES_13: 'Cloud SQL for PostgreSQL', POSTGRES_14: 'Cloud SQL for PostgreSQL', POSTGRES_15: 'Cloud SQL for PostgreSQL', POSTGRES_16: 'Cloud SQL for PostgreSQL',
+      MYSQL_5_7: 'Cloud SQL for MySQL', MYSQL_8_0: 'Cloud SQL for MySQL',
+      SQLSERVER_2017_STANDARD: 'Cloud SQL for SQL Server', SQLSERVER_2019_STANDARD: 'Cloud SQL for SQL Server', SQLSERVER_2022_STANDARD: 'Cloud SQL for SQL Server',
+    } },
+  },
+  google_spanner_database: { kind: 'database', tech: 'Google Cloud Spanner' },
+  google_firestore_database: { kind: 'database', tech: 'Google Cloud Firestore' },
+  google_bigtable_instance: { kind: 'database', tech: 'Google Cloud Bigtable' },
+  google_redis_instance: { kind: 'cache', tech: 'Google Cloud Memorystore for Redis' },
+  google_pubsub_topic: { kind: 'topic', tech: 'Google Cloud Pub/Sub' },
+  google_storage_bucket: { kind: 'storage', tech: 'Google Cloud Storage' },
 };
 
 /** Turn a Terraform string literal into an id; `${var.prefix}-quote-api` resolves the same as Bicep's `${...}`. */
@@ -79,12 +99,13 @@ function blockEnd(text: string, start: number): number {
 }
 
 /**
- * `environment { variables = { KEY = "value" } }` / `app_settings = { KEY = "value" }` (map literals),
- * and Container Apps' per-variable `env { name = "K" value = "V" }` blocks.
+ * `environment { variables = { KEY = "value" } }` / `app_settings = { KEY = "value" }` / Cloud
+ * Functions' `environment_variables = { KEY = "value" }` (map literals), and Container Apps' and
+ * Cloud Run's per-variable `env { name = "K" value = "V" }` blocks.
  */
 function envEntries(block: string): Array<[string, string]> {
   const out: Array<[string, string]> = [];
-  for (const m of block.matchAll(/\b(?:variables|app_settings)\s*=\s*\{/g)) {
+  for (const m of block.matchAll(/\b(?:variables|app_settings|environment_variables)\s*=\s*\{/g)) {
     const body = block.slice(m.index! + m[0].length, blockEnd(block, m.index! + m[0].length));
     for (const kv of body.matchAll(/([\w.-]+)\s*=\s*"([^"]*)"/g)) out.push([kv[1]!, kv[2]!]);
   }
